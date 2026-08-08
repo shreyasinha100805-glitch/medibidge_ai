@@ -135,9 +135,14 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
             />
           </div>
 
-          <button type="submit" className="glow-btn" disabled={loading} style={{ marginTop: '0.5rem', justifyContent: 'center' }}>
-            {loading ? 'Adding...' : 'Add Prescription'}
-          </button>
+          <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.5rem' }}>
+            <button type="button" onClick={onClose} className="btn-ghost" style={{ flex: 1, justifyContent: 'center' }}>
+              ← Back
+            </button>
+            <button type="submit" className="glow-btn" disabled={loading} style={{ flex: 2, justifyContent: 'center' }}>
+              {loading ? 'Adding...' : 'Add Prescription'}
+            </button>
+          </div>
         </form>
 
       </div>

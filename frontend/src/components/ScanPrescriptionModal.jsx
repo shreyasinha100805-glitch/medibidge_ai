@@ -73,9 +73,13 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.4)' }}>
         
-        {/* Close Button */}
-        <button onClick={onClose} style={{ position: 'absolute', top: '1.2rem', right: '1.2rem', background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer' }}>
-          <IconXCircle className="w-6 h-6" color="#94a3b8" />
+        {/* Top Back Navigation */}
+        <button
+          onClick={onClose}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+        >
+          ← Back to Dashboard
         </button>
 
         {/* Modal Header */}
