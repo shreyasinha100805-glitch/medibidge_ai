@@ -70,7 +70,7 @@ export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal, onAddMedic
       setChatLogs((prev) => [...prev, userMsg]);
 
       try {
-        const scanRes = await scanPrescriptionImageAPI(base64);
+        const scanRes = await scanPrescriptionImageAPI(base64, 'image/jpeg', file.name || '');
         const pData = scanRes.data.prescription;
 
         const aiAdvice = `I've analyzed your doctor prescription note using **${pData.aiModelUsed || 'Gemini Vision OCR'}** with **${(pData.confidenceScore * 100).toFixed(0)}% confidence**!\n\n` +
@@ -94,11 +94,12 @@ export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal, onAddMedic
         setChatLogs((prev) => [...prev, aiMsg]);
         if (showToast) showToast('📷 Prescription analyzed by Gemini AI Vision!', 'success');
       } catch (err) {
+        const errorMsg = err.message || 'The uploaded photo could not be verified as a valid medical prescription.';
         setChatLogs((prev) => [
           ...prev,
-          { role: 'ai', text: 'Failed to analyze prescription image. Please ensure the image is clear and try again.', id: Date.now() + 1 },
+          { role: 'ai', text: `⚠️ **Prescription Scanner Notice**: ${errorMsg}`, id: Date.now() + 1 },
         ]);
-        if (showToast) showToast('Failed to analyze prescription', 'error');
+        if (showToast) showToast(errorMsg, 'error');
       } finally {
         setIsScanningImage(false);
       }

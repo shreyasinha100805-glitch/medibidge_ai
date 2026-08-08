@@ -66,8 +66,8 @@ export const askAIAssistant = (question) =>
 
 export const getAIHistory = () => apiCall('/ai/history');
 
-export const scanPrescriptionImageAPI = (imageBase64, mimeType = 'image/jpeg') =>
-  apiCall('/ai/scan-prescription', { method: 'POST', body: JSON.stringify({ imageBase64, mimeType }) });
+export const scanPrescriptionImageAPI = (imageBase64, mimeType = 'image/jpeg', fileName = '') =>
+  apiCall('/ai/scan-prescription', { method: 'POST', body: JSON.stringify({ imageBase64, mimeType, fileName }) });
 
 // ---- CARETAKER PORTAL ----
 export const getCaretakerPatients = () => apiCall('/caretakers/patients');

@@ -53,13 +53,17 @@ export const getAIHistory = asyncHandler(async (req, res) => {
 });
 
 export const scanPrescription = asyncHandler(async (req, res) => {
-  const { imageBase64, mimeType } = req.body;
+  const { imageBase64, mimeType, fileName } = req.body;
 
   if (!imageBase64) {
     throw new ApiError(400, 'Please provide a prescription image (base64).');
   }
 
-  const result = await scanPrescriptionImage(imageBase64, mimeType || 'image/jpeg');
+  const result = await scanPrescriptionImage(imageBase64, mimeType || 'image/jpeg', fileName || '');
+
+  if (result.isValidPrescription === false) {
+    throw new ApiError(400, result.rejectionReason || 'The uploaded photo does not contain a valid doctor prescription or pill label.');
+  }
 
   res.status(200).json({
     success: true,

@@ -12,6 +12,8 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
   const [error, setError] = useState('');
   const [adding, setAdding] = useState(false);
 
+  const [fileName, setFileName] = useState('');
+
   // Handle Image Upload
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -19,6 +21,7 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
 
     setError('');
     setExtractedData(null);
+    setFileName(file.name || '');
     const reader = new FileReader();
 
     reader.onloadend = () => {
@@ -36,10 +39,10 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
     setError('');
 
     try {
-      const res = await scanPrescriptionImageAPI(imageBase64);
+      const res = await scanPrescriptionImageAPI(imageBase64, 'image/jpeg', fileName);
       setExtractedData(res.data.prescription);
     } catch (err) {
-      setError(err.message || 'Failed to analyze prescription image.');
+      setError(err.message || 'The uploaded image could not be verified as a valid medical prescription.');
     } finally {
       setScanning(false);
     }
