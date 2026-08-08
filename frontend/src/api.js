@@ -60,11 +60,14 @@ export const addMedicine = (medicineData) =>
 export const deleteMedicine = (id) =>
   apiCall(`/medicines/${id}`, { method: 'DELETE' });
 
-// ---- AI ASSISTANT ----
+// ---- AI ASSISTANT & PRESCRIPTION SCANNER ----
 export const askAIAssistant = (question) =>
   apiCall('/ai/assistant', { method: 'POST', body: JSON.stringify({ question }) });
 
 export const getAIHistory = () => apiCall('/ai/history');
+
+export const scanPrescriptionImageAPI = (imageBase64, mimeType = 'image/jpeg') =>
+  apiCall('/ai/scan-prescription', { method: 'POST', body: JSON.stringify({ imageBase64, mimeType }) });
 
 // ---- CARETAKER PORTAL ----
 export const getCaretakerPatients = () => apiCall('/caretakers/patients');

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { IconBrain, IconSparkles, IconPill, IconShield, IconActivity } from './Icons';
+import { IconBrain, IconSparkles, IconPill, IconShield, IconActivity, IconCamera } from './Icons';
 
-export const AIAssistant = ({ onAskAI, history = [] }) => {
+export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal }) => {
   const [question, setQuestion] = useState('');
   const [chatLogs, setChatLogs] = useState(history);
   const [isAsking, setIsAsking] = useState(false);
@@ -45,17 +45,24 @@ export const AIAssistant = ({ onAskAI, history = [] }) => {
     <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem 1.5rem' }}>
       
       {/* Header Banner */}
-      <div className="glass-panel" style={{ padding: '2rem', marginBottom: '2rem', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'rgba(15, 23, 42, 0.85)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
-          <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', width: '56px', height: '56px', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 25px rgba(139, 92, 246, 0.5)' }}>
-            <IconBrain className="w-8 h-8" color="#ffffff" />
+      <div className="glass-panel" style={{ padding: '2rem', marginBottom: '1.5rem', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'rgba(15, 23, 42, 0.85)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.2rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>
+            <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', width: '56px', height: '56px', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 25px rgba(139, 92, 246, 0.5)' }}>
+              <IconBrain className="w-8 h-8" color="#ffffff" />
+            </div>
+            <div>
+              <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>MediBridge AI Health Assistant</h2>
+              <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem' }}>
+                Personalized adherence analysis powered by your live MongoDB medical logs with medical safety guardrails.
+              </p>
+            </div>
           </div>
-          <div>
-            <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>MediBridge AI Health Assistant</h2>
-            <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-              Personalized adherence analysis powered by your live MongoDB medical logs with medical safety guardrails.
-            </p>
-          </div>
+
+          <button onClick={onOpenScanModal} className="btn-purple" style={{ padding: '0.8rem 1.4rem' }}>
+            <IconCamera className="w-5 h-5" color="#ffffff" />
+            Scan Prescription (AI OCR)
+          </button>
         </div>
       </div>
 

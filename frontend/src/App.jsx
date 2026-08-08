@@ -7,6 +7,7 @@ import { AIAssistant } from './components/AIAssistant';
 import { CaretakerDashboard } from './components/CaretakerDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { AddMedicineModal } from './components/AddMedicineModal';
+import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
 import { translations } from './translations';
 
 import {
@@ -44,8 +45,9 @@ export function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
 
-  // Add Medicine modal
+  // Add Medicine modal & Scan Prescription modal
   const [addMedOpen, setAddMedOpen] = useState(false);
+  const [scanModalOpen, setScanModalOpen] = useState(false);
 
   // Notifications drawer
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
@@ -224,6 +226,7 @@ export function App() {
             onMarkTaken={handleMarkTaken}
             onMarkMissed={handleMarkMissed}
             onOpenAddMed={() => setAddMedOpen(true)}
+            onOpenScanModal={() => setScanModalOpen(true)}
             onDeleteMed={handleDeleteMedicine}
             onRefresh={fetchUserData}
           />
@@ -233,6 +236,7 @@ export function App() {
           <AIAssistant
             onAskAI={handleAskAI}
             history={aiHistory}
+            onOpenScanModal={() => setScanModalOpen(true)}
           />
         )}
 
@@ -264,6 +268,12 @@ export function App() {
         isOpen={addMedOpen}
         onClose={() => setAddMedOpen(false)}
         onAdd={handleAddMedicine}
+      />
+
+      <ScanPrescriptionModal
+        isOpen={scanModalOpen}
+        onClose={() => setScanModalOpen(false)}
+        onAddMedicine={handleAddMedicine}
       />
 
       <NotificationDrawer

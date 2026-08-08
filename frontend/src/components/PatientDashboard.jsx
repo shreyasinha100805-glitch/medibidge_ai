@@ -9,6 +9,7 @@ import {
   IconTrash,
   IconRefresh,
   IconSparkles,
+  IconCamera,
 } from './Icons';
 
 export const PatientDashboard = ({
@@ -19,6 +20,7 @@ export const PatientDashboard = ({
   onMarkTaken,
   onMarkMissed,
   onOpenAddMed,
+  onOpenScanModal,
   onDeleteMed,
   onRefresh,
 }) => {
@@ -45,10 +47,14 @@ export const PatientDashboard = ({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.8rem' }}>
+        <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
           <button onClick={onRefresh} className="btn-ghost">
             <IconRefresh className="w-4 h-4" color="#f8fafc" />
             Sync Logs
+          </button>
+          <button onClick={onOpenScanModal} className="btn-purple">
+            <IconCamera className="w-5 h-5" color="#ffffff" />
+            Scan Prescription (AI OCR)
           </button>
           <button onClick={onOpenAddMed} className="btn-primary">
             <IconPlus className="w-5 h-5" color="#ffffff" />

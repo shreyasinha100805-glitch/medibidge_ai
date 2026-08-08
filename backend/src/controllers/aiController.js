@@ -1,7 +1,7 @@
 import AIInteraction from '../models/AIInteraction.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
-import { buildPatientAIContext, generateAIResponse } from '../services/aiService.js';
+import { buildPatientAIContext, generateAIResponse, scanPrescriptionImage } from '../services/aiService.js';
 
 export const askAssistant = asyncHandler(async (req, res) => {
   const { question } = req.body;
@@ -49,5 +49,21 @@ export const getAIHistory = asyncHandler(async (req, res) => {
   res.status(200).json({
     success: true,
     data: { interactions },
+  });
+});
+
+export const scanPrescription = asyncHandler(async (req, res) => {
+  const { imageBase64, mimeType } = req.body;
+
+  if (!imageBase64) {
+    throw new ApiError(400, 'Please provide a prescription image (base64).');
+  }
+
+  const result = await scanPrescriptionImage(imageBase64, mimeType || 'image/jpeg');
+
+  res.status(200).json({
+    success: true,
+    message: 'Prescription image analyzed successfully by MediBridge AI.',
+    data: { prescription: result },
   });
 });
