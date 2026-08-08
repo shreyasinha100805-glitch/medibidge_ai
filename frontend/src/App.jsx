@@ -248,6 +248,7 @@ export function App() {
             onOpenScanModal={() => setScanModalOpen(true)}
             onDeleteMed={handleDeleteMedicine}
             onRefresh={fetchUserData}
+            onBack={() => setActiveTab('home')}
           />
         )}
 

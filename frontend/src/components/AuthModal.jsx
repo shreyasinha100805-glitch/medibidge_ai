@@ -34,9 +34,13 @@ export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister,
     <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
       <div className="glass-panel" style={{ width: '100%', maxWidth: '440px', padding: '2rem', position: 'relative' }}>
         
-        {/* Close Button */}
-        <button onClick={onClose} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'transparent', border: 'none', color: '#9ca3af', cursor: 'pointer' }}>
-          <IconXCircle className="w-6 h-6" color="#9ca3af" />
+        {/* Top Back Button */}
+        <button
+          onClick={onClose}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+        >
+          ← Back to App
         </button>
 
         {/* Tab Header */}

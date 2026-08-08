@@ -25,6 +25,7 @@ export const PatientDashboard = ({
   onOpenScanModal,
   onDeleteMed,
   onRefresh,
+  onBack,
 }) => {
   const todayAdherence = adherence?.today?.adherencePercentage || 0;
   const monthAdherence = adherence?.month?.adherencePercentage || 0;
@@ -37,6 +38,17 @@ export const PatientDashboard = ({
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
+      {/* Top Back Navigation Option */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 700 }}
+        >
+          ← Back to Home
+        </button>
+      )}
+
       {/* Top Header & Actions */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
