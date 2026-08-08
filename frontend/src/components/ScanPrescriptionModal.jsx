@@ -42,6 +42,7 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
       const res = await scanPrescriptionImageAPI(imageBase64, 'image/jpeg', fileName);
       setExtractedData(res.data.prescription);
     } catch (err) {
+      setExtractedData(null);
       setError(err.message || 'The uploaded image could not be verified as a valid medical prescription.');
     } finally {
       setScanning(false);
