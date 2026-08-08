@@ -2,12 +2,23 @@ import React from 'react';
 import { IconActivity, IconShield, IconSparkles, IconCheckCircle, IconBrain, IconPill } from './Icons';
 import { DailyTrendBarChart, AdherenceDonutGauge } from './Charts';
 
-export const ImpactDashboard = ({ adherence }) => {
+export const ImpactDashboard = ({ adherence, onBack }) => {
   const monthPercent = adherence?.month?.adherencePercentage || 85.7;
 
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2.5rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2.5rem' }}>
       
+      {/* Top Back Navigation Option */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 700 }}
+        >
+          ← Back to Dashboard
+        </button>
+      )}
+
       {/* Hero Header */}
       <div className="glass-panel" style={{ padding: '2.5rem', border: '1px solid rgba(245, 158, 11, 0.4)', background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.95))' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1.5rem' }}>

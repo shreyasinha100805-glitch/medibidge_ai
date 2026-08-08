@@ -18,6 +18,7 @@ export const CaretakerDashboard = ({
   onInspectPatient,
   selectedPatientData,
   onCloseInspect,
+  onBack,
 }) => {
   const [connectEmail, setConnectEmail] = useState('');
   const [connectMsg, setConnectMsg] = useState('');
@@ -43,6 +44,17 @@ export const CaretakerDashboard = ({
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
+      {/* Top Back Navigation Option */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 700 }}
+        >
+          ← Back to Main Page
+        </button>
+      )}
+
       {/* Header Banner */}
       <div className="glass-panel" style={{ padding: '2rem', border: '1px solid rgba(16, 185, 129, 0.4)', background: 'rgba(15, 23, 42, 0.85)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1.2rem' }}>

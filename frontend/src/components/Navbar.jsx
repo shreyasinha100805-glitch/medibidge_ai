@@ -64,6 +64,30 @@ export const Navbar = ({
 
           {user ? (
             <>
+              {/* Back Button for Sub-pages */}
+              {((user.role === 'PATIENT' && activeTab !== 'dashboard') || (user.role === 'CARETAKER' && activeTab !== 'caretaker')) && (
+                <button
+                  onClick={() => setActiveTab(user.role === 'PATIENT' ? 'dashboard' : 'caretaker')}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.08)',
+                    color: '#f8fafc',
+                    border: '1px solid rgba(255, 255, 255, 0.2)',
+                    padding: '0.45rem 0.9rem',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    transition: 'all 0.2s ease',
+                  }}
+                  title="Return to Main Dashboard"
+                >
+                  ← Back
+                </button>
+              )}
+
               {/* Patient Tabs */}
               {user.role === 'PATIENT' && (
                 <>

@@ -258,6 +258,7 @@ export function App() {
             onOpenScanModal={() => setScanModalOpen(true)}
             onAddMedicine={handleAddMedicine}
             showToast={showToast}
+            onBack={() => setActiveTab('dashboard')}
           />
         )}
 
@@ -270,11 +271,15 @@ export function App() {
             onInspectPatient={handleInspectPatient}
             selectedPatientData={selectedPatientData}
             onCloseInspect={() => setSelectedPatientData(null)}
+            onBack={() => setActiveTab('caretaker')}
           />
         )}
 
         {activeTab === 'impact' && (
-          <ImpactDashboard adherence={adherence} />
+          <ImpactDashboard
+            adherence={adherence}
+            onBack={() => setActiveTab(user?.role === 'PATIENT' ? 'dashboard' : user?.role === 'CARETAKER' ? 'caretaker' : 'home')}
+          />
         )}
       </main>
 

@@ -2,7 +2,7 @@ import React, { useState, useRef } from 'react';
 import { IconBrain, IconSparkles, IconPill, IconShield, IconActivity, IconCamera, IconCheckCircle } from './Icons';
 import { scanPrescriptionImageAPI } from '../api';
 
-export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal, onAddMedicine, showToast }) => {
+export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal, onAddMedicine, showToast, onBack }) => {
   const [question, setQuestion] = useState('');
   const [chatLogs, setChatLogs] = useState(history);
   const [isAsking, setIsAsking] = useState(false);
@@ -151,6 +151,17 @@ export const AIAssistant = ({ onAskAI, history = [], onOpenScanModal, onAddMedic
         onChange={handleDirectImageUpload}
         style={{ display: 'none' }}
       />
+
+      {/* Top Back Navigation Option */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="btn-ghost"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 700 }}
+        >
+          ← Back to Dashboard
+        </button>
+      )}
 
       {/* Header Banner */}
       <div className="glass-panel" style={{ padding: '2rem', marginBottom: '1.5rem', border: '1px solid rgba(139, 92, 246, 0.4)', background: 'rgba(15, 23, 42, 0.85)' }}>
