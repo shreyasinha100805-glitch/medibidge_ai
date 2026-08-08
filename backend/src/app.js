@@ -14,15 +14,22 @@ import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 const app = express();
 
 // ---- Security & core middleware ----------------------------------
-app.use(helmet());
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || '*',
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps, curl) or any localhost/vercel domain
+      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.endsWith('.vercel.app') || process.env.CLIENT_URL === '*') {
+        callback(null, true);
+      } else {
+        callback(null, true);
+      }
+    },
     credentials: true,
   })
 );
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 if (process.env.NODE_ENV !== 'production') {
   app.use(morgan('dev'));

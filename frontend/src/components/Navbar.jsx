@@ -56,6 +56,7 @@ export const Navbar = ({
               <option value="EN" style={{ background: '#121826' }}>English</option>
               <option value="ES" style={{ background: '#121826' }}>Español</option>
               <option value="HI" style={{ background: '#121826' }}>हिन्दी</option>
+              <option value="BN" style={{ background: '#121826' }}>বাংলা (Bengali)</option>
               <option value="FR" style={{ background: '#121826' }}>Français</option>
               <option value="SI" style={{ background: '#121826' }}>සිංහල</option>
             </select>
@@ -79,18 +80,34 @@ export const Navbar = ({
                     <IconBrain className="w-4 h-4" color="#a78bfa" />
                     AI Assistant
                   </button>
+                  <button
+                    onClick={() => setActiveTab('impact')}
+                    style={{ background: activeTab === 'impact' ? 'rgba(245, 158, 11, 0.15)' : 'transparent', color: activeTab === 'impact' ? '#fbbf24' : '#9ca3af', border: 'none', padding: '0.5rem 1rem', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <IconSparkles className="w-4 h-4" color="#fbbf24" />
+                    Impact Metrics
+                  </button>
                 </>
               )}
 
               {/* Caretaker Tab */}
               {user.role === 'CARETAKER' && (
-                <button
-                  onClick={() => setActiveTab('caretaker')}
-                  style={{ background: activeTab === 'caretaker' ? 'rgba(16, 185, 129, 0.15)' : 'transparent', color: activeTab === 'caretaker' ? '#34d399' : '#9ca3af', border: 'none', padding: '0.5rem 1rem', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
-                >
-                  <IconShield className="w-4 h-4" color="#34d399" />
-                  Caretaker Portal
-                </button>
+                <>
+                  <button
+                    onClick={() => setActiveTab('caretaker')}
+                    style={{ background: activeTab === 'caretaker' ? 'rgba(16, 185, 129, 0.15)' : 'transparent', color: activeTab === 'caretaker' ? '#34d399' : '#9ca3af', border: 'none', padding: '0.5rem 1rem', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <IconShield className="w-4 h-4" color="#34d399" />
+                    Caretaker Portal
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('impact')}
+                    style={{ background: activeTab === 'impact' ? 'rgba(245, 158, 11, 0.15)' : 'transparent', color: activeTab === 'impact' ? '#fbbf24' : '#9ca3af', border: 'none', padding: '0.5rem 1rem', borderRadius: '10px', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+                  >
+                    <IconSparkles className="w-4 h-4" color="#fbbf24" />
+                    Impact Metrics
+                  </button>
+                </>
               )}
 
               {/* Notifications Trigger */}

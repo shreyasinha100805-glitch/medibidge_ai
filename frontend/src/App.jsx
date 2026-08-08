@@ -5,9 +5,11 @@ import { AuthModal } from './components/AuthModal';
 import { PatientDashboard } from './components/PatientDashboard';
 import { AIAssistant } from './components/AIAssistant';
 import { CaretakerDashboard } from './components/CaretakerDashboard';
+import { ImpactDashboard } from './components/ImpactDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { AddMedicineModal } from './components/AddMedicineModal';
 import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
+import { Toast } from './components/Toast';
 import { translations } from './translations';
 
 import {
@@ -48,6 +50,13 @@ export function App() {
   // Add Medicine modal & Scan Prescription modal
   const [addMedOpen, setAddMedOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
+
+  // Toast System
+  const [toast, setToast] = useState(null);
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
 
   // Notifications drawer
   const [notifDrawerOpen, setNotifDrawerOpen] = useState(false);
@@ -112,6 +121,7 @@ export function App() {
     localStorage.setItem('medibridge_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     setActiveTab(res.data.user.role === 'PATIENT' ? 'dashboard' : 'caretaker');
+    showToast(`Welcome back, ${res.data.user.name}!`, 'success');
   };
 
   const handleRegister = async (userData) => {
@@ -120,6 +130,7 @@ export function App() {
     localStorage.setItem('medibridge_user', JSON.stringify(res.data.user));
     setUser(res.data.user);
     setActiveTab(res.data.user.role === 'PATIENT' ? 'dashboard' : 'caretaker');
+    showToast('Account created successfully!', 'success');
   };
 
   const handleLogout = () => {
@@ -127,31 +138,36 @@ export function App() {
     localStorage.removeItem('medibridge_user');
     setUser(null);
     setActiveTab('home');
+    showToast('Logged out safely.', 'info');
   };
 
   const handleQuickDemoLogin = (email, password) => {
-    handleLogin(email, password).catch((err) => alert('Login failed: ' + err.message));
+    handleLogin(email, password).catch((err) => showToast('Login failed: ' + err.message, 'error'));
   };
 
   // Patient Actions
   const handleMarkTaken = async (medicineId) => {
     await markMedicineTaken(medicineId);
+    showToast('✓ Dose marked as TAKEN (+15 pts)', 'success');
     fetchUserData();
   };
 
   const handleMarkMissed = async (medicineId) => {
     await markMedicineMissed(medicineId);
+    showToast('✕ Dose marked as MISSED', 'error');
     fetchUserData();
   };
 
   const handleAddMedicine = async (medData) => {
     await addMedicine(medData);
+    showToast(`✓ Prescription ${medData.name} added to schedule!`, 'success');
     fetchUserData();
   };
 
   const handleDeleteMedicine = async (id) => {
     if (window.confirm('Delete this prescription?')) {
       await deleteMedicine(id);
+      showToast('Prescription removed.', 'info');
       fetchUserData();
     }
   };
@@ -164,12 +180,14 @@ export function App() {
   // Caretaker Actions
   const handleSendCaretakerRequest = async (email) => {
     const res = await sendCaretakerRequest(email);
+    showToast('⚡ Caretaker connection request sent!', 'success');
     fetchUserData();
     return res;
   };
 
   const handleRespondRequest = async (requestId, status) => {
     await respondCaretakerRequest(requestId, status);
+    showToast(`Request ${status.toLowerCase()}`, 'info');
     fetchUserData();
   };
 
@@ -186,6 +204,7 @@ export function App() {
 
   const handleMarkAllNotifsRead = async () => {
     await markAllNotificationsRead();
+    showToast('All notifications marked as read', 'info');
     fetchUserData();
   };
 
@@ -237,6 +256,8 @@ export function App() {
             onAskAI={handleAskAI}
             history={aiHistory}
             onOpenScanModal={() => setScanModalOpen(true)}
+            onAddMedicine={handleAddMedicine}
+            showToast={showToast}
           />
         )}
 
@@ -250,6 +271,10 @@ export function App() {
             selectedPatientData={selectedPatientData}
             onCloseInspect={() => setSelectedPatientData(null)}
           />
+        )}
+
+        {activeTab === 'impact' && (
+          <ImpactDashboard adherence={adherence} />
         )}
       </main>
 
@@ -283,6 +308,9 @@ export function App() {
         onMarkRead={handleMarkNotifRead}
         onMarkAllRead={handleMarkAllNotifsRead}
       />
+
+      {/* Floating Toast Alerts */}
+      <Toast toast={toast} onClose={() => setToast(null)} />
 
     </div>
   );

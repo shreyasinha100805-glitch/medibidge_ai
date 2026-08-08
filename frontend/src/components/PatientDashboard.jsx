@@ -12,6 +12,8 @@ import {
   IconCamera,
 } from './Icons';
 
+import { DailyTrendBarChart } from './Charts';
+
 export const PatientDashboard = ({
   scheduleSummary,
   schedule,
@@ -130,6 +132,9 @@ export const PatientDashboard = ({
         </div>
 
       </div>
+
+      {/* Visual 7-Day Trend Chart */}
+      <DailyTrendBarChart data={adherence?.weekTrend} />
 
       {/* Main Schedule vs Breakdown Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '2rem' }}>
