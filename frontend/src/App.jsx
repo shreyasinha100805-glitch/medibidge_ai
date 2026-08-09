@@ -9,6 +9,8 @@ import { ImpactDashboard } from './components/ImpactDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { AddMedicineModal } from './components/AddMedicineModal';
 import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
+import { ScanMedicineModal } from './components/ScanMedicineModal';
+import { HealthLogModal } from './components/HealthLogModal';
 import { AlarmModal } from './components/AlarmModal';
 import { Toast } from './components/Toast';
 import { translations } from './translations';
@@ -24,6 +26,8 @@ import {
   addMedicine,
   deleteMedicine,
   askAIAssistant,
+  getHealthLogs,
+  addHealthLog,
   getCaretakerPatients,
   getPatientDashboardForCaretaker,
   sendCaretakerRequest,
@@ -60,9 +64,11 @@ export function App() {
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState('login');
 
-  // Add Medicine modal & Scan Prescription modal
+  // Modals state
   const [addMedOpen, setAddMedOpen] = useState(false);
   const [scanModalOpen, setScanModalOpen] = useState(false);
+  const [scanMedicineOpen, setScanMedicineOpen] = useState(false);
+  const [healthLogOpen, setHealthLogOpen] = useState(false);
 
   // Toast System
   const [toast, setToast] = useState(null);
@@ -81,6 +87,7 @@ export function App() {
   const [schedule, setSchedule] = useState([]);
   const [adherence, setAdherence] = useState(null);
   const [medicines, setMedicines] = useState([]);
+  const [healthLogs, setHealthLogs] = useState([]);
 
   // AI state
   const [aiHistory] = useState([]);
@@ -100,15 +107,17 @@ export function App() {
       setUnreadNotifsCount(notifData.data.unreadCount || 0);
 
       if (user.role === 'PATIENT') {
-        const [todayData, adhData, medData] = await Promise.all([
+        const [todayData, adhData, medData, logsData] = await Promise.all([
           getTodaySchedule(),
           getAdherenceMetrics(),
           getMedicines(),
+          getHealthLogs(),
         ]);
         setScheduleSummary(todayData.data.summary);
         setSchedule(todayData.data.schedule);
         setAdherence(adhData.data);
         setMedicines(medData.data.medicines || []);
+        setHealthLogs(logsData.data?.logs || []);
       } else if (user.role === 'CARETAKER') {
         const [patientsData, reqsData] = await Promise.all([
           getCaretakerPatients(),
@@ -199,6 +208,17 @@ export function App() {
       showToast('Prescription removed.', 'info');
       fetchUserData();
     }
+  };
+
+  const handleSaveHealthLog = async (logData) => {
+    await addHealthLog(logData);
+    showToast('✓ Health log saved successfully!', 'success');
+    fetchUserData();
+  };
+
+  const handleExplainHealthStatus = () => {
+    setActiveTab('ai');
+    showToast('✨ Navigated to AI Assistant for Health Status Explanation', 'info');
   };
 
   // AI Assistant Action
@@ -308,10 +328,15 @@ export function App() {
             schedule={schedule}
             adherence={adherence}
             medicines={medicines}
+            healthLogs={healthLogs}
             onMarkTaken={handleMarkTaken}
             onMarkMissed={handleMarkMissed}
             onOpenAddMed={() => setAddMedOpen(true)}
             onOpenScanModal={() => setScanModalOpen(true)}
+            onOpenScanMedicineModal={() => setScanMedicineOpen(true)}
+            onOpenHealthLogModal={() => setHealthLogOpen(true)}
+            onExplainHealthStatus={handleExplainHealthStatus}
+            onOpenCaretakerPortal={() => setActiveTab('caretaker')}
             onDeleteMed={handleDeleteMedicine}
             onRefresh={fetchUserData}
             onBack={() => setActiveTab('home')}
@@ -376,6 +401,18 @@ export function App() {
         isOpen={scanModalOpen}
         onClose={() => setScanModalOpen(false)}
         onAddMedicine={handleAddMedicine}
+      />
+
+      <ScanMedicineModal
+        isOpen={scanMedicineOpen}
+        onClose={() => setScanMedicineOpen(false)}
+        onAddMedicine={handleAddMedicine}
+      />
+
+      <HealthLogModal
+        isOpen={healthLogOpen}
+        onClose={() => setHealthLogOpen(false)}
+        onSaveLog={handleSaveHealthLog}
       />
 
       <NotificationDrawer

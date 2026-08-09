@@ -17,6 +17,11 @@ const caretakerConnectionSchema = new mongoose.Schema(
       enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
       default: 'PENDING',
     },
+    permissions: {
+      viewAdherence: { type: Boolean, default: true },
+      viewHealthLogs: { type: Boolean, default: true },
+      receiveMissedAlerts: { type: Boolean, default: true },
+    },
   },
   { timestamps: { createdAt: true, updatedAt: false } }
 );

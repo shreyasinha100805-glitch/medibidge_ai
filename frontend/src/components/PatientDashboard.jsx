@@ -21,10 +21,15 @@ export const PatientDashboard = ({
   schedule = [],
   adherence,
   medicines = [],
+  healthLogs = [],
   onMarkTaken,
   onMarkMissed,
   onOpenAddMed,
   onOpenScanModal,
+  onOpenScanMedicineModal,
+  onOpenHealthLogModal,
+  onExplainHealthStatus,
+  onOpenCaretakerPortal,
   onDeleteMed,
   onRefresh,
   onBack,
@@ -39,6 +44,30 @@ export const PatientDashboard = ({
 
   const todayAdherence = adherence?.today?.adherencePercentage || 0;
   const monthAdherence = adherence?.month?.adherencePercentage || 0;
+
+  // AI Health Status Logic
+  const latestLog = healthLogs[0] || { systolicBP: 120, diastolicBP: 80, bloodSugar: 105, symptoms: [] };
+  const hasSevereBP = latestLog.systolicBP >= 140 || latestLog.diastolicBP >= 90;
+  const hasSevereSugar = latestLog.bloodSugar > 180;
+  const hasSevereSymptoms = (latestLog.symptoms || []).some(s => ['Chest Discomfort', 'Shortness of Breath', 'Dizziness'].includes(s));
+  const missedCount = scheduleSummary.missed || 0;
+
+  let healthStatus = 'STABLE';
+  let healthStatusLabel = '🟢 Stable';
+  let healthStatusColor = '#34d399';
+  let healthReasoning = 'Your reported blood pressure, glucose levels, and adherence rate are within target ranges.';
+
+  if (hasSevereBP || hasSevereSugar || hasSevereSymptoms || missedCount >= 2) {
+    healthStatus = 'URGENT';
+    healthStatusLabel = '🔴 Urgent Attention Needed';
+    healthStatusColor = '#ff4b5c';
+    healthReasoning = `Reported elevated readings (BP ${latestLog.systolicBP}/${latestLog.diastolicBP}, Glucose ${latestLog.bloodSugar} mg/dL) or symptoms (${latestLog.symptoms.join(', ') || 'Missed Doses'}).`;
+  } else if (monthAdherence < 80 || missedCount >= 1 || latestLog.systolicBP >= 130) {
+    healthStatus = 'ATTENTION';
+    healthStatusLabel = '🟡 Needs Attention';
+    healthStatusColor = '#fbbf24';
+    healthReasoning = 'Slight dose delay or mild symptoms recorded. Keep monitoring routine.';
+  }
 
   const handleEnableAlarmsToggle = async () => {
     const nextState = !alarmsEnabled;
@@ -55,7 +84,7 @@ export const PatientDashboard = ({
     window.open(HOSPITAL_SEARCH_URL, '_blank', 'noopener,noreferrer');
   };
 
-  // Calculate SVG Ring Dash Offset (radius 40, circumference ~251.3)
+  // Calculate SVG Ring Dash Offset
   const ringRadius = 40;
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference - (monthAdherence / 100) * ringCircumference;
@@ -102,17 +131,17 @@ export const PatientDashboard = ({
         </button>
       )}
 
-      {/* Top Header & Netflix/YouTube Controls */}
+      {/* Top Header & Patient Controls */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#dc2626', display: 'inline-block', flexShrink: 0 }} />
+            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: healthStatusColor, display: 'inline-block', flexShrink: 0 }} />
             <h2 style={{ fontSize: '2.1rem', fontWeight: 900, letterSpacing: '-0.03em' }} className="gradient-text-netflix">
               Patient Command Center
             </h2>
           </div>
           <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem', fontWeight: 500 }}>
-            Netflix-style horizontal category rails, live prescription alarms & Gemini AI vision
+            Welcome back! AI adherence tracking, vision prescription scanning & health log monitoring
           </p>
         </div>
 
@@ -163,33 +192,77 @@ export const PatientDashboard = ({
             <IconClock className="w-4 h-4" color="#f8fafc" />
             {alarmsEnabled ? 'Alarms On' : 'Alarms Off'}
           </button>
+        </div>
+      </div>
 
-          <button onClick={onOpenScanModal} className="btn-ghost" style={{ borderRadius: '14px' }}>
-            <IconCamera className="w-5 h-5" color="#ffffff" />
-            Scan Vision
+      {/* 6 MAIN PRIMARY QUICK ACTION BUTTONS */}
+      <div className="glass-panel" style={{ padding: '1.25rem' }}>
+        <h4 style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem' }}>
+          ⚡ Primary Quick Action Modules
+        </h4>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+          <button onClick={onOpenScanModal} className="btn-primary" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            📷 Scan Prescription
           </button>
-
-          <button onClick={onOpenAddMed} className="btn-primary" style={{ borderRadius: '14px' }}>
-            <IconPlus className="w-5 h-5" color="#ffffff" />
-            Add Dose
+          <button onClick={onOpenScanMedicineModal} className="btn-netflix" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            💊 Scan Medicine
+          </button>
+          <button onClick={onOpenAddMed} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            📋 My Medicines
+          </button>
+          <button onClick={onTriggerTestAlarm} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            ⏱ Medicine Reminders
+          </button>
+          <button onClick={onOpenHealthLogModal} className="btn-purple" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            🩸 Health Log
+          </button>
+          <button onClick={onOpenCaretakerPortal} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
+            🤝 Caretaker Portal
           </button>
         </div>
       </div>
 
-      {/* Emergency Alert Banner */}
-      <div className="glass-panel" style={{ padding: '1.4rem', border: '1px solid rgba(229, 9, 20, 0.5)', background: 'rgba(229, 9, 20, 0.12)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+      {/* AI Health Status Overview & "Explain My Health Status" Panel */}
+      <div className="glass-panel" style={{ padding: '1.5rem', border: `1px solid ${healthStatusColor}66`, background: 'rgba(15, 23, 42, 0.95)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ff4b5c' }}>Emergency Response & Hospital Locator</h3>
-            <p style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.3rem', fontWeight: 500 }}>
-              If experiencing chest pain, breathing difficulty, or severe side effects, request immediate medical assistance.
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <span style={{ fontSize: '1.1rem', fontWeight: 900, color: healthStatusColor }}>{healthStatusLabel}</span>
+              <span style={{ fontSize: '0.75rem', background: 'rgba(255,255,255,0.08)', padding: '0.2rem 0.6rem', borderRadius: '6px', color: '#94a3b8', fontWeight: 700 }}>
+                AI-Assisted Assessment
+              </span>
+            </div>
+            <p style={{ color: '#f8fafc', fontSize: '0.95rem', fontWeight: 600, marginTop: '0.4rem' }}>
+              Reason: {healthReasoning}
+            </p>
+            <p style={{ color: '#64748b', fontSize: '0.78rem', marginTop: '0.3rem', fontStyle: 'italic' }}>
+              "This is an AI-assisted assessment and is not a medical diagnosis. Consult a qualified healthcare professional for medical decisions."
             </p>
           </div>
-          <button onClick={handleOpenHospitals} className="btn-netflix" style={{ whiteSpace: 'nowrap', borderRadius: '12px' }}>
-            Find Nearby Hospitals
-          </button>
+          {onExplainHealthStatus && (
+            <button onClick={onExplainHealthStatus} className="btn-purple" style={{ whiteSpace: 'nowrap', borderRadius: '12px', padding: '0.75rem 1.2rem' }}>
+              ✨ Explain My Health Status
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Emergency Risk Alert Banner */}
+      {healthStatus === 'URGENT' && (
+        <div className="glass-panel" style={{ padding: '1.4rem', border: '1px solid rgba(229, 9, 20, 0.8)', background: 'rgba(229, 9, 20, 0.2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 900, color: '#ff4b5c' }}>⚠️ "Your reported information may require urgent medical attention."</h3>
+              <p style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.3rem', fontWeight: 500 }}>
+                High blood pressure or severe symptoms reported. Please contact your primary physician or emergency services immediately.
+              </p>
+            </div>
+            <button onClick={handleOpenHospitals} className="btn-netflix" style={{ whiteSpace: 'nowrap', borderRadius: '12px' }}>
+              Find Nearby Hospitals
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Metric Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>

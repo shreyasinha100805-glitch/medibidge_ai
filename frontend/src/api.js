@@ -754,3 +754,108 @@ export const markAllNotificationsRead = async () => {
         return { success: true };
     }
 };
+
+// =====================================================
+// HEALTH LOGS (Blood Pressure, Glucose, Symptoms)
+// =====================================================
+
+const getLocalHealthLogs = () => {
+    try {
+        const saved = localStorage.getItem("medibridge_health_logs");
+        return saved ? JSON.parse(saved) : [
+            {
+                _id: "log_1",
+                systolicBP: 120,
+                diastolicBP: 80,
+                bloodSugar: 105,
+                bloodSugarType: "FASTING",
+                symptoms: ["Mild Headache"],
+                notes: "Morning routine reading",
+                loggedAt: new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
+            }
+        ];
+    } catch {
+        return [];
+    }
+};
+
+export const getHealthLogs = async () => {
+    try {
+        return await apiCall("/health-logs");
+    } catch {
+        const logs = getLocalHealthLogs();
+        return { success: true, data: { logs } };
+    }
+};
+
+export const addHealthLog = async (logData) => {
+    try {
+        return await apiCall("/health-logs", {
+            method: "POST",
+            body: JSON.stringify(logData)
+        });
+    } catch {
+        const logs = getLocalHealthLogs();
+        const newLog = {
+            _id: `log_${Date.now()}`,
+            ...logData
+        };
+        const updated = [newLog, ...logs];
+        localStorage.setItem("medibridge_health_logs", JSON.stringify(updated));
+        addAuditLog("HEALTH_LOG_CREATED", `Recorded BP ${logData.systolicBP}/${logData.diastolicBP}, Glucose ${logData.bloodSugar}`);
+        return { success: true, data: { log: newLog } };
+    }
+};
+
+// =====================================================
+// AUDIT LOGS & PERMISSIONS
+// =====================================================
+
+const getLocalAuditLogs = () => {
+    try {
+        const saved = localStorage.getItem("medibridge_audit_logs");
+        return saved ? JSON.parse(saved) : [
+            { id: "audit_1", action: "ACCOUNT_LOGIN", details: "User authenticated securely", timestamp: new Date().toISOString() },
+            { id: "audit_2", action: "PERMISSION_CONFIGURED", details: "Caretaker access granted with full viewing permissions", timestamp: new Date(Date.now() - 3600000).toISOString() }
+        ];
+    } catch {
+        return [];
+    }
+};
+
+export const addAuditLog = (action, details = "") => {
+    const logs = getLocalAuditLogs();
+    const newEntry = { id: `audit_${Date.now()}`, action, details, timestamp: new Date().toISOString() };
+    const updated = [newEntry, ...logs];
+    localStorage.setItem("medibridge_audit_logs", JSON.stringify(updated));
+};
+
+export const getAuditLogs = async () => {
+    try {
+        return await apiCall("/audit-logs");
+    } catch {
+        return { success: true, data: { logs: getLocalAuditLogs() } };
+    }
+};
+
+export const updateCaretakerPermissions = async (connectionId, permissions) => {
+    try {
+        return await apiCall(`/caretakers/connections/${connectionId}/permissions`, {
+            method: "PATCH",
+            body: JSON.stringify({ permissions })
+        });
+    } catch {
+        addAuditLog("PERMISSIONS_UPDATED", `Updated permissions for caretaker connection ${connectionId}`);
+        return { success: true, message: "Permissions updated successfully" };
+    }
+};
+
+export const revokeCaretakerConnection = async (connectionId) => {
+    try {
+        return await apiCall(`/caretakers/connections/${connectionId}`, { method: "DELETE" });
+    } catch {
+        addAuditLog("CARETAKER_REVOKED", `Revoked caretaker access for connection ${connectionId}`);
+        return { success: true, message: "Caretaker access revoked" };
+    }
+};
+

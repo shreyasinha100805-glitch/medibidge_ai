@@ -157,34 +157,38 @@ export const CaretakerDashboard = ({
 
           {/* Pending Requests List */}
           <div className="glass-panel" style={{ padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem' }}>Connection Requests</h3>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem' }}>Pending Caretaker Invitations</h3>
             
             {requests.length === 0 ? (
-              <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No pending connection requests.</div>
+              <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No pending caretaker invitations.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {requests.map((req) => (
-                  <div key={req._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div key={req._id} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1.2rem', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '14px', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
                     <div>
-                      <div style={{ fontWeight: 800, fontSize: '0.95rem' }}>
-                        {req.patientId?.name || 'User'}
+                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>
+                        📩 "Patient {req.patientId?.name || req.patientEmail || 'User'} has invited you as their caretaker."
                       </div>
-                      <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>Status: {req.status}</div>
+                      <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                        Accepting grants access to view medication adherence and health log alerts permitted by patient.
+                      </div>
                     </div>
 
                     {req.status === 'PENDING' && (
-                      <div style={{ display: 'flex', gap: '0.5rem' }}>
+                      <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.2rem' }}>
                         <button
                           onClick={() => onRespondRequest(req._id, 'ACCEPTED')}
-                          style={{ background: 'rgba(16, 185, 129, 0.2)', border: '1px solid rgba(16, 185, 129, 0.4)', color: '#34d399', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                          className="btn-primary"
+                          style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', justifyContent: 'center' }}
                         >
-                          Accept
+                          ✓ Accept Invitation
                         </button>
                         <button
                           onClick={() => onRespondRequest(req._id, 'REJECTED')}
-                          style={{ background: 'rgba(244, 63, 94, 0.2)', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fb7185', padding: '0.4rem 0.8rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 700, cursor: 'pointer' }}
+                          className="btn-ghost"
+                          style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', justifyContent: 'center', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fb7185' }}
                         >
-                          Reject
+                          ✕ Reject
                         </button>
                       </div>
                     )}
