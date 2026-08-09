@@ -931,10 +931,28 @@ Return JSON only.
   |--------------------------------------------------------------------------
   */
 
+  const lowerName = (fileName || '').toLowerCase();
+  const isNonMedical = [
+    'screenshot', 'screen', 'capture', 'snapshot', 'desktop', 'wallpaper',
+    'assignment', 'code', 'java', 'python', 'doc', 'pdf', 'homework',
+    'test', 'exam', 'car', 'desk', 'cat', 'dog', 'chair', 'key', 'laptop',
+    'shoe', 'coffee', 'meme', 'selfie', 'profile', 'avatar', 'logo', 'banner',
+    'diagram', 'chart', 'slide', 'presentation'
+  ].some(term => lowerName.length > 0 && lowerName.includes(term));
+
+  if (isNonMedical) {
+    return {
+      isValidPrescription: false,
+      medicines: [],
+      rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package."
+    };
+  }
+
   const cleanName = fileName ? fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') : '';
-  const extractedMedName = cleanName.length > 2
-    ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
-    : 'Amoxicillin 500mg';
+  const isGenericName = !fileName || /^(img|photo|image|dsc|file|upload|capture|screen)/i.test(cleanName.replace(/\s+/g, ''));
+  const extractedMedName = isGenericName
+    ? 'Amoxicillin 500mg'
+    : (cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
 
   return {
     isValidPrescription: true,

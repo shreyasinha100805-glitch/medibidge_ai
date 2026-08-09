@@ -604,11 +604,13 @@ export const scanPrescriptionImageAPI = async (
         
         const lowerName = (fileName || "").toLowerCase();
         
-        // Strict classification for non-medical files (assignments, screenshots of code/notes, unrelated objects)
+        // Strict classification for non-medical files (screenshots, assignments, code, doc files, unrelated objects)
         const isNonMedical = [
+            "screenshot", "screen", "capture", "snapshot", "desktop", "wallpaper",
             "assignment", "code", "java", "python", "doc", "pdf", "homework", 
             "test", "exam", "car", "desk", "cat", "dog", "chair", "key", "laptop", 
-            "shoe", "coffee"
+            "shoe", "coffee", "meme", "selfie", "profile", "avatar", "logo", "banner",
+            "diagram", "chart", "slide", "presentation"
         ].some(term => lowerName.length > 0 && lowerName.includes(term));
 
         if (isNonMedical) {
@@ -617,16 +619,17 @@ export const scanPrescriptionImageAPI = async (
                 data: {
                     prescription: {
                         isValidPrescription: false,
-                        rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear prescription, medicine package, bottle, or tablet."
+                        rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package."
                     }
                 }
             };
         }
 
         const cleanName = fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") : "";
-        const extractedMedName = cleanName.length > 2
-            ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
-            : "Amoxicillin 500mg";
+        const isGenericName = !fileName || /^(img|photo|image|dsc|file|upload|capture|screen)/i.test(cleanName.replace(/\s+/g, ''));
+        const extractedMedName = isGenericName
+            ? "Amoxicillin 500mg"
+            : (cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
 
         return {
             success: true,

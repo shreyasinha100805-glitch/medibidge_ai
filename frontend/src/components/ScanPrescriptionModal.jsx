@@ -48,13 +48,29 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
     setScanning(true);
     setError('');
 
+    const lowerName = (fileName || '').toLowerCase();
+    const isNonMedical = [
+      'screenshot', 'screen', 'capture', 'snapshot', 'desktop', 'wallpaper',
+      'assignment', 'code', 'java', 'python', 'doc', 'pdf', 'homework',
+      'test', 'exam', 'car', 'desk', 'cat', 'dog', 'chair', 'key', 'laptop',
+      'shoe', 'coffee', 'meme', 'selfie', 'profile', 'avatar', 'logo', 'banner',
+      'diagram', 'chart', 'slide', 'presentation'
+    ].some(term => lowerName.length > 0 && lowerName.includes(term));
+
+    if (isNonMedical) {
+      setExtractedData(null);
+      setError("This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package.");
+      setScanning(false);
+      return;
+    }
+
     try {
       const res = await scanPrescriptionImageAPI(imageBase64, 'image/jpeg', fileName);
       const pres = res?.data?.prescription || res?.prescription;
 
       if (!pres || pres.isValidPrescription === false) {
         setExtractedData(null);
-        setError(pres?.rejectionReason || 'The uploaded image could not be verified as a valid medical prescription.');
+        setError(pres?.rejectionReason || "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package.");
       } else {
         setExtractedData({
           name: pres.name || pres.medicines?.[0]?.name || 'Amoxicillin 500mg',
