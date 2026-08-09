@@ -9,8 +9,10 @@ import { ImpactDashboard } from './components/ImpactDashboard';
 import { NotificationDrawer } from './components/NotificationDrawer';
 import { AddMedicineModal } from './components/AddMedicineModal';
 import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
+import { AlarmModal } from './components/AlarmModal';
 import { Toast } from './components/Toast';
 import { translations } from './translations';
+import { playSoundTone } from './utils/alarmAudio';
 
 import {
   loginUser,
@@ -42,6 +44,20 @@ export function App() {
   });
   const [lang, setLang] = useState('EN');
   const [activeTab, setActiveTab] = useState(user ? (user.role === 'PATIENT' ? 'dashboard' : 'caretaker') : 'home');
+
+  // Alarm & Sound Settings State
+  const [selectedSound, setSelectedSound] = useState(
+    () => localStorage.getItem('medibridge_alarm_sound') || 'gentle_chime'
+  );
+  const [alarmsEnabled, setAlarmsEnabled] = useState(
+    () => localStorage.getItem('medibridge_alarms_enabled') !== 'false'
+  );
+  const [activeAlarmData, setActiveAlarmData] = useState(null);
+
+  // Persist sound choice
+  useEffect(() => {
+    localStorage.setItem('medibridge_alarm_sound', selectedSound);
+  }, [selectedSound]);
 
   // Auth modal
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -83,6 +99,20 @@ export function App() {
       fetchUserData();
     }
   }, [user]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setUser(null);
+      setActiveTab('home');
+      showToast('Your session expired. Please login again.', 'error');
+    };
+
+    window.addEventListener('medibridge:auth-expired', handleAuthExpired);
+
+    return () => {
+      window.removeEventListener('medibridge:auth-expired', handleAuthExpired);
+    };
+  }, []);
 
   const fetchUserData = async () => {
     try {
@@ -135,6 +165,8 @@ export function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('medibridge_token');
+    localStorage.removeItem('token');
+    localStorage.removeItem('accessToken');
     localStorage.removeItem('medibridge_user');
     setUser(null);
     setActiveTab('home');
@@ -208,6 +240,42 @@ export function App() {
     fetchUserData();
   };
 
+  // Alarm Trigger & Snooze Logic
+  const handleTriggerTestAlarm = () => {
+    const sampleMed = schedule[0]?.medicineId || medicines[0] || {
+      name: 'Amoxicillin 500mg',
+      scheduledTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      dosage: 500,
+      unit: 'mg',
+      category: 'Antibiotic',
+      instructions: 'Take 1 capsule after breakfast with full glass of water.',
+    };
+    setActiveAlarmData(sampleMed);
+  };
+
+  const handleTakeMedicineFromAlarm = async (medId) => {
+    if (medId) {
+      await handleMarkTaken(medId);
+    } else {
+      showToast('✓ Dose marked as TAKEN (+15 pts)', 'success');
+    }
+    setActiveAlarmData(null);
+  };
+
+  const handleSnoozeAlarm = (medData, minutes = 5) => {
+    setActiveAlarmData(null);
+    showToast(`⏰ Alarm snoozed for ${minutes} minutes`, 'info');
+    setTimeout(() => {
+      if (alarmsEnabled) {
+        setActiveAlarmData(medData);
+      }
+    }, minutes * 60 * 1000);
+  };
+
+  const handleDismissAlarm = () => {
+    setActiveAlarmData(null);
+  };
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       
@@ -223,6 +291,7 @@ export function App() {
         translations={translations}
         unreadCount={unreadNotifsCount}
         onOpenNotifications={() => setNotifDrawerOpen(true)}
+        onTriggerTestAlarm={handleTriggerTestAlarm}
       />
 
       {/* Main Content Area */}
@@ -249,6 +318,11 @@ export function App() {
             onDeleteMed={handleDeleteMedicine}
             onRefresh={fetchUserData}
             onBack={() => setActiveTab('home')}
+            onTriggerTestAlarm={handleTriggerTestAlarm}
+            selectedSound={selectedSound}
+            setSelectedSound={setSelectedSound}
+            alarmsEnabled={alarmsEnabled}
+            setAlarmsEnabled={setAlarmsEnabled}
           />
         )}
 
@@ -315,6 +389,17 @@ export function App() {
         onMarkAllRead={handleMarkAllNotifsRead}
       />
 
+      {/* Interactive Alarm Trigger Modal */}
+      <AlarmModal
+        isOpen={!!activeAlarmData}
+        alarmData={activeAlarmData}
+        onTakeMedicine={handleTakeMedicineFromAlarm}
+        onSnooze={handleSnoozeAlarm}
+        onDismiss={handleDismissAlarm}
+        selectedSound={selectedSound}
+        setSelectedSound={setSelectedSound}
+      />
+
       {/* Floating Toast Alerts */}
       <Toast toast={toast} onClose={() => setToast(null)} />
 
@@ -323,3 +408,4 @@ export function App() {
 }
 
 export default App;
+

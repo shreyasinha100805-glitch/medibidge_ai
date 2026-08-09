@@ -9,7 +9,9 @@ build/
 *.log
 npm-debug.log*
 
-# Environment files (keep template or ignore sensitive)
+# Environment files
+.env
+*.env
 .env.local
 .env.development.local
 .env.test.local

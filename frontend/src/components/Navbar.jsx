@@ -20,6 +20,7 @@ export const Navbar = ({
   translations,
   unreadCount = 0,
   onOpenNotifications,
+  onTriggerTestAlarm,
 }) => {
   const t = translations[lang] || translations.EN;
 
@@ -147,6 +148,29 @@ export const Navbar = ({
                   </span>
                 )}
               </button>
+
+              {/* Quick Alarm Sound Test Trigger */}
+              {onTriggerTestAlarm && (
+                <button
+                  onClick={onTriggerTestAlarm}
+                  style={{
+                    background: 'rgba(244, 63, 94, 0.15)',
+                    border: '1px solid rgba(244, 63, 94, 0.35)',
+                    color: '#fb7185',
+                    padding: '0.45rem 0.8rem',
+                    borderRadius: '10px',
+                    fontWeight: 700,
+                    fontSize: '0.85rem',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                  }}
+                  title="Test Alarm Sound & Modal"
+                >
+                  🔔 Sound Test
+                </button>
+              )}
 
               {/* User Profile Badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.3rem 0.8rem', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>

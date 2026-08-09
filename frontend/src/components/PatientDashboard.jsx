@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   IconPill,
   IconCheckCircle,
@@ -14,6 +14,21 @@ import {
 
 import { DailyTrendBarChart } from './Charts';
 
+import { SOUND_PROFILES, playSoundTone } from '../utils/alarmAudio';
+
+const HOSPITAL_SEARCH_URL = 'https://www.google.com/maps/search/hospitals+near+me';
+
+function getScheduledDate(time) {
+  if (!time || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
+    return null;
+  }
+
+  const [hours, minutes] = time.split(':').map(Number);
+  const date = new Date();
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}
+
 export const PatientDashboard = ({
   scheduleSummary,
   schedule,
@@ -26,9 +41,29 @@ export const PatientDashboard = ({
   onDeleteMed,
   onRefresh,
   onBack,
+  onTriggerTestAlarm,
+  selectedSound = 'gentle_chime',
+  setSelectedSound,
+  alarmsEnabled = true,
+  setAlarmsEnabled,
 }) => {
   const todayAdherence = adherence?.today?.adherencePercentage || 0;
   const monthAdherence = adherence?.month?.adherencePercentage || 0;
+
+  const handleEnableAlarmsToggle = async () => {
+    const nextState = !alarmsEnabled;
+    if (setAlarmsEnabled) {
+      setAlarmsEnabled(nextState);
+    }
+    localStorage.setItem('medibridge_alarms_enabled', nextState ? 'true' : 'false');
+    if (nextState) {
+      playSoundTone(selectedSound, 0.7);
+    }
+  };
+
+  const handleOpenHospitals = () => {
+    window.open(HOSPITAL_SEARCH_URL, '_blank', 'noopener,noreferrer');
+  };
 
   // Calculate SVG Ring Dash Offset (radius 40, circumference ~251.3)
   const ringRadius = 40;
@@ -57,22 +92,83 @@ export const PatientDashboard = ({
             <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>Patient Command Center</h2>
           </div>
           <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-            Real-time prescription logs, automated cron tracking & adherence metrics
+            Real-time prescription logs, procedural audio alarm alerts & adherence metrics
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap' }}>
-          <button onClick={onRefresh} className="btn-ghost">
+        <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={onRefresh} className="btn-ghost" title="Sync Logs">
             <IconRefresh className="w-4 h-4" color="#f8fafc" />
-            Sync Logs
+            Sync
           </button>
-          <button onClick={onOpenScanModal} className="btn-purple">
+
+          {/* Sound Selector Dropdown */}
+          <select
+            value={selectedSound}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (setSelectedSound) setSelectedSound(val);
+              playSoundTone(val, 0.7);
+            }}
+            style={{
+              background: 'rgba(15, 23, 42, 0.8)',
+              color: '#f8fafc',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              padding: '0.65rem 0.85rem',
+              borderRadius: '14px',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              outline: 'none',
+              cursor: 'pointer',
+            }}
+          >
+            {SOUND_PROFILES.map((p) => (
+              <option key={p.id} value={p.id} style={{ background: '#0f172a', color: '#fff' }}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+
+          {/* Test Alarm Sound Button */}
+          <button
+            onClick={onTriggerTestAlarm}
+            className="btn-purple"
+            style={{ whiteSpace: 'nowrap' }}
+          >
+            <IconClock className="w-4 h-4" color="#ffffff" />
+            🔔 Test Alarm & Sound
+          </button>
+
+          <button onClick={handleEnableAlarmsToggle} className={alarmsEnabled ? 'btn-primary' : 'btn-ghost'}>
+            <IconClock className="w-4 h-4" color="#f8fafc" />
+            {alarmsEnabled ? 'Alarms On' : 'Alarms Off'}
+          </button>
+
+          <button onClick={onOpenScanModal} className="btn-ghost">
             <IconCamera className="w-5 h-5" color="#ffffff" />
-            Scan Prescription (AI OCR)
+            Scan Prescription
           </button>
+
           <button onClick={onOpenAddMed} className="btn-primary">
             <IconPlus className="w-5 h-5" color="#ffffff" />
             Add Prescription
+          </button>
+        </div>
+      </div>
+
+      <div className="glass-panel" style={{ padding: '1.4rem', border: '1px solid rgba(244, 63, 94, 0.35)', background: 'rgba(127, 29, 29, 0.18)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div>
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#fecaca' }}>Unstable Patient Emergency Help</h3>
+            <p style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.3rem' }}>
+              If the patient has chest pain, breathing trouble, fainting, seizure, stroke symptoms, or is unconscious, call emergency services now.
+            </p>
+            <p style={{ color: '#fecaca', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+              India: 112 or 108. US: 911. Take prescriptions and medicine bottles to the hospital.
+            </p>
+          </div>
+          <button onClick={handleOpenHospitals} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
+            Find Nearby Hospitals
           </button>
         </div>
       </div>

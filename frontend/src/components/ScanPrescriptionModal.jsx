@@ -5,6 +5,16 @@ import { scanPrescriptionImageAPI } from '../api';
 export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
   if (!isOpen) return null;
 
+  const normalizeFrequency = (frequency) => {
+    const validFrequencies = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
+    return validFrequencies.includes(frequency) ? frequency : undefined;
+  };
+
+  const normalizeCategory = (category) => {
+    const validCategories = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Supplement', 'Other'];
+    return validCategories.includes(category) ? category : 'Other';
+  };
+
   const [imagePreview, setImagePreview] = useState(null);
   const [imageBase64, setImageBase64] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -60,9 +70,9 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
         name: extractedData.name,
         dosage: Number(extractedData.dosage),
         unit: extractedData.unit,
-        category: extractedData.category,
+        category: normalizeCategory(extractedData.category),
         scheduledTime: extractedData.scheduledTime,
-        frequency: extractedData.frequency || 'DAILY',
+        frequency: normalizeFrequency(extractedData.frequency),
         instructions: extractedData.instructions,
       });
       onClose();
