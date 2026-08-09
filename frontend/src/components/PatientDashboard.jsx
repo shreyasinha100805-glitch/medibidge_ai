@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   IconCheckCircle,
   IconXCircle,
@@ -11,16 +11,16 @@ import {
 } from './Icons';
 
 import { DailyTrendBarChart } from './Charts';
-
+import { MediaRail } from './MediaRail';
 import { SOUND_PROFILES, playSoundTone } from '../utils/alarmAudio';
 
 const HOSPITAL_SEARCH_URL = 'https://www.google.com/maps/search/hospitals+near+me';
 
 export const PatientDashboard = ({
   scheduleSummary,
-  schedule,
+  schedule = [],
   adherence,
-  medicines,
+  medicines = [],
   onMarkTaken,
   onMarkMissed,
   onOpenAddMed,
@@ -34,6 +34,9 @@ export const PatientDashboard = ({
   alarmsEnabled = true,
   setAlarmsEnabled,
 }) => {
+  const [filterCategory, setFilterCategory] = useState('ALL');
+  const [searchQuery, setSearchQuery] = useState('');
+
   const todayAdherence = adherence?.today?.adherencePercentage || 0;
   const monthAdherence = adherence?.month?.adherencePercentage || 0;
 
@@ -57,6 +60,34 @@ export const PatientDashboard = ({
   const ringCircumference = 2 * Math.PI * ringRadius;
   const ringOffset = ringCircumference - (monthAdherence / 100) * ringCircumference;
 
+  // Rail item transformers
+  const railScheduleItems = schedule.map(s => {
+    const med = s.medicineId || {};
+    return {
+      _id: med._id || s._id,
+      name: med.name || 'Medication',
+      dosage: `${med.dosage || ''} ${med.unit || ''}`.trim() || '1 Dose',
+      time: med.scheduledTime || 'Today',
+      status: s.status,
+      category: med.category || 'REGULAR',
+      instructions: med.instructions || 'Take with water',
+      taken: s.status === 'TAKEN'
+    };
+  });
+
+  // Filtered Schedule
+  const filteredSchedule = schedule.filter(item => {
+    const med = item.medicineId || {};
+    const nameMatch = (med.name || '').toLowerCase().includes(searchQuery.toLowerCase());
+    
+    if (!nameMatch) return false;
+    if (filterCategory === 'ALL') return true;
+    if (filterCategory === 'PENDING') return item.status === 'PENDING';
+    if (filterCategory === 'TAKEN') return item.status === 'TAKEN';
+    if (filterCategory === 'CRITICAL') return med.category === 'CRITICAL';
+    return true;
+  });
+
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '2rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
       
@@ -71,19 +102,21 @@ export const PatientDashboard = ({
         </button>
       )}
 
-      {/* Top Header & Actions */}
+      {/* Top Header & Netflix/YouTube Controls */}
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <div className="pulse-dot pulse-dot-green" />
-            <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>Patient Command Center</h2>
+            <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse shadow-lg shadow-red-600/50" />
+            <h2 style={{ fontSize: '2.1rem', fontWeight: 900, letterSpacing: '-0.03em' }} className="gradient-text-netflix">
+              Patient Command Center
+            </h2>
           </div>
-          <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-            Real-time prescription logs, procedural audio alarm alerts & adherence metrics
+          <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem', fontWeight: 500 }}>
+            Netflix-style horizontal category rails, live prescription alarms & Gemini AI vision
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '0.8rem', flexWrap: 'wrap', alignItems: 'center' }}>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
           <button onClick={onRefresh} className="btn-ghost" title="Sync Logs">
             <IconRefresh className="w-4 h-4" color="#f8fafc" />
             Sync
@@ -98,19 +131,19 @@ export const PatientDashboard = ({
               playSoundTone(val, 0.7);
             }}
             style={{
-              background: 'rgba(15, 23, 42, 0.8)',
+              background: 'rgba(15, 23, 42, 0.95)',
               color: '#f8fafc',
-              border: '1px solid rgba(255, 255, 255, 0.15)',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
               padding: '0.65rem 0.85rem',
               borderRadius: '14px',
               fontSize: '0.85rem',
-              fontWeight: 700,
+              fontWeight: 800,
               outline: 'none',
               cursor: 'pointer',
             }}
           >
             {SOUND_PROFILES.map((p) => (
-              <option key={p.id} value={p.id} style={{ background: '#0f172a', color: '#fff' }}>
+              <option key={p.id} value={p.id} style={{ background: '#0b0f19', color: '#fff' }}>
                 {p.name}
               </option>
             ))}
@@ -119,48 +152,46 @@ export const PatientDashboard = ({
           {/* Test Alarm Sound Button */}
           <button
             onClick={onTriggerTestAlarm}
-            className="btn-purple"
-            style={{ whiteSpace: 'nowrap' }}
+            className="btn-netflix"
+            style={{ whiteSpace: 'nowrap', borderRadius: '14px', padding: '0.65rem 1.1rem' }}
           >
             <IconClock className="w-4 h-4" color="#ffffff" />
-            🔔 Test Alarm & Sound
+            🔔 Sound Test
           </button>
 
-          <button onClick={handleEnableAlarmsToggle} className={alarmsEnabled ? 'btn-primary' : 'btn-ghost'}>
+          <button onClick={handleEnableAlarmsToggle} className={alarmsEnabled ? 'btn-primary' : 'btn-ghost'} style={{ borderRadius: '14px' }}>
             <IconClock className="w-4 h-4" color="#f8fafc" />
             {alarmsEnabled ? 'Alarms On' : 'Alarms Off'}
           </button>
 
-          <button onClick={onOpenScanModal} className="btn-ghost">
+          <button onClick={onOpenScanModal} className="btn-ghost" style={{ borderRadius: '14px' }}>
             <IconCamera className="w-5 h-5" color="#ffffff" />
-            Scan Prescription
+            Scan Vision
           </button>
 
-          <button onClick={onOpenAddMed} className="btn-primary">
+          <button onClick={onOpenAddMed} className="btn-primary" style={{ borderRadius: '14px' }}>
             <IconPlus className="w-5 h-5" color="#ffffff" />
-            Add Prescription
+            Add Dose
           </button>
         </div>
       </div>
 
-      <div className="glass-panel" style={{ padding: '1.4rem', border: '1px solid rgba(244, 63, 94, 0.35)', background: 'rgba(127, 29, 29, 0.18)' }}>
+      {/* Emergency Alert Banner */}
+      <div className="glass-panel" style={{ padding: '1.4rem', border: '1px solid rgba(229, 9, 20, 0.5)', background: 'rgba(229, 9, 20, 0.12)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
           <div>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#fecaca' }}>Unstable Patient Emergency Help</h3>
-            <p style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.3rem' }}>
-              If the patient has chest pain, breathing trouble, fainting, seizure, stroke symptoms, or is unconscious, call emergency services now.
-            </p>
-            <p style={{ color: '#fecaca', fontSize: '0.85rem', marginTop: '0.35rem' }}>
-              India: 112 or 108. US: 911. Take prescriptions and medicine bottles to the hospital.
+            <h3 style={{ fontSize: '1.15rem', fontWeight: 900, color: '#ff4b5c' }}>Emergency Response & Hospital Locator</h3>
+            <p style={{ color: '#fca5a5', fontSize: '0.9rem', marginTop: '0.3rem', fontWeight: 500 }}>
+              If experiencing chest pain, breathing difficulty, or severe side effects, request immediate medical assistance.
             </p>
           </div>
-          <button onClick={handleOpenHospitals} className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
+          <button onClick={handleOpenHospitals} className="btn-netflix" style={{ whiteSpace: 'nowrap', borderRadius: '12px' }}>
             Find Nearby Hospitals
           </button>
         </div>
       </div>
 
-      {/* Top Metric Cards Row */}
+      {/* Metric Cards Row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
         
         {/* Metric 1: 30-Day Adherence Gauge Ring */}
@@ -174,7 +205,7 @@ export const PatientDashboard = ({
                 r={ringRadius}
                 strokeWidth="8"
                 fill="transparent"
-                stroke={monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#fb7185'}
+                stroke={monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#e50914'}
                 className="ring-circle-val"
                 style={{ strokeDasharray: ringCircumference, strokeDashoffset: ringOffset }}
               />
@@ -185,7 +216,7 @@ export const PatientDashboard = ({
           </div>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>30-Day Adherence</p>
-            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.2rem', color: monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#fb7185' }}>
+            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.2rem', color: monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#ff4b5c' }}>
               {monthAdherence >= 80 ? 'Excellent' : monthAdherence >= 60 ? 'Moderate' : 'Action Needed'}
             </h4>
             <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>
@@ -198,57 +229,100 @@ export const PatientDashboard = ({
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today's Doses</p>
-            <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem' }} className="gradient-text-cyan">
+            <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem' }} className="gradient-text-netflix">
               {scheduleSummary.taken} / {scheduleSummary.total}
             </h3>
-            <p style={{ fontSize: '0.8rem', color: '#34d399', marginTop: '0.2rem' }}>
+            <p style={{ fontSize: '0.8rem', color: '#34d399', marginTop: '0.2rem', fontWeight: 700 }}>
               {todayAdherence}% completed today
             </p>
           </div>
-          <div style={{ background: 'rgba(6, 182, 212, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <IconActivity className="w-7 h-7" color="#06b6d4" />
+          <div style={{ background: 'rgba(229, 9, 20, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(229, 9, 20, 0.3)' }}>
+            <IconActivity className="w-7 h-7 text-red-500" />
           </div>
         </div>
 
         {/* Metric 3: Pending Alerts */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
-            <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Doses</p>
+            <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Alarms</p>
             <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem', color: scheduleSummary.pending > 0 ? '#fbbf24' : '#34d399' }}>
               {scheduleSummary.pending}
             </h3>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: 600 }}>
               {scheduleSummary.pending > 0 ? 'Requires attention today' : 'All clear for now'}
             </p>
           </div>
-          <div style={{ background: 'rgba(245, 158, 11, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(245, 158, 11, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
             <IconClock className="w-7 h-7" color="#fbbf24" />
           </div>
         </div>
 
       </div>
 
+      {/* Netflix Horizontal Category Rail 1: Top Daily Schedule Row */}
+      {railScheduleItems.length > 0 && (
+        <MediaRail
+          title="🎬 Featured Daily Prescription Rail"
+          subtitle="Horizontal scrollable medication posters with 1-click dose tracking and alarm preview"
+          items={railScheduleItems}
+          onMarkTaken={onMarkTaken}
+          onPlaySound={(item) => playSoundTone(selectedSound, 0.8)}
+        />
+      )}
+
+      {/* YouTube Style Search & Filter Pill Bar */}
+      <div className="glass-panel p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+        {/* Search Input */}
+        <div className="w-full md:w-80 relative">
+          <input
+            type="text"
+            placeholder="Search prescriptions..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition-all placeholder:text-slate-500 font-medium"
+          />
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 hide-scrollbar">
+          {[
+            { id: 'ALL', label: 'All Doses' },
+            { id: 'PENDING', label: 'Pending ⏳' },
+            { id: 'TAKEN', label: 'Completed ✓' },
+            { id: 'CRITICAL', label: 'Critical 🚨' },
+          ].map(f => (
+            <button
+              key={f.id}
+              onClick={() => setFilterCategory(f.id)}
+              className={`filter-pill ${filterCategory === f.id ? 'active' : ''}`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Visual 7-Day Trend Chart */}
       <DailyTrendBarChart data={adherence?.weekTrend} />
 
-      {/* Main Schedule vs Breakdown Section */}
+      {/* Main Schedule & Breakdown Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '2rem' }}>
         
-        {/* Today's Schedule Cards */}
+        {/* Today's Schedule Cards List */}
         <div className="glass-panel" style={{ padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '1rem' }}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Today's Scheduled Doses</h3>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>Detailed Alarm Log ({filteredSchedule.length})</h3>
             <span style={{ fontSize: '0.85rem', background: 'rgba(255, 255, 255, 0.05)', padding: '0.3rem 0.8rem', borderRadius: '8px', color: '#94a3b8', fontWeight: 600 }}>
               {new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
           </div>
 
-          {schedule.length === 0 ? (
-            <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8' }}>
-              No prescription doses scheduled for today.
+          {filteredSchedule.length === 0 ? (
+            <div style={{ padding: '3rem', textAlign: 'center', color: '#94a3b8', fontWeight: 600 }}>
+              No prescription doses matched your current filter.
             </div>
           ) : (
-            schedule.map((item) => {
+            filteredSchedule.map((item) => {
               const med = item.medicineId || {};
               const isTaken = item.status === 'TAKEN';
               const isMissed = item.status === 'MISSED';
@@ -257,23 +331,9 @@ export const PatientDashboard = ({
               return (
                 <div
                   key={item._id}
-                  style={{
-                    background: isTaken
-                      ? 'rgba(16, 185, 129, 0.06)'
-                      : isMissed
-                      ? 'rgba(244, 63, 94, 0.06)'
-                      : 'rgba(255, 255, 255, 0.02)',
-                    border: isTaken
-                      ? '1px solid rgba(16, 185, 129, 0.3)'
-                      : isMissed
-                      ? '1px solid rgba(244, 63, 94, 0.3)'
-                      : '1px solid rgba(255, 255, 255, 0.08)',
-                    borderRadius: '16px',
-                    padding: '1.4rem',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '1rem',
-                  }}
+                  className={`netflix-card p-5 flex flex-col gap-3.5 ${
+                    med.category === 'CRITICAL' ? 'netflix-card-red' : ''
+                  }`}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <div>
@@ -290,55 +350,39 @@ export const PatientDashboard = ({
                   </div>
 
                   {med.instructions && (
-                    <p style={{ fontSize: '0.85rem', color: '#94a3b8', background: 'rgba(0, 0, 0, 0.2)', padding: '0.5rem 0.8rem', borderRadius: '8px', borderLeft: '3px solid #06b6d4' }}>
+                    <p style={{ fontSize: '0.85rem', color: '#94a3b8', background: 'rgba(0, 0, 0, 0.3)', padding: '0.5rem 0.8rem', borderRadius: '10px', borderLeft: '3px solid #e50914' }}>
                       Instructions: {med.instructions}
                     </p>
                   )}
 
-                  {/* Quick Action Toggle Buttons */}
+                  {/* Action Buttons */}
                   <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.2rem' }}>
                     <button
                       onClick={() => onMarkTaken(med._id)}
                       disabled={isTaken}
+                      className="btn-netflix"
                       style={{
                         flex: 1,
-                        background: isTaken ? 'rgba(16, 185, 129, 0.25)' : 'rgba(16, 185, 129, 0.1)',
-                        border: '1px solid rgba(16, 185, 129, 0.4)',
-                        color: '#34d399',
                         padding: '0.65rem',
-                        borderRadius: '10px',
-                        fontWeight: 700,
                         fontSize: '0.85rem',
-                        cursor: isTaken ? 'default' : 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
+                        opacity: isTaken ? 0.6 : 1,
                         justifyContent: 'center',
-                        gap: '0.4rem',
-                        transition: 'all 0.2s ease',
                       }}
                     >
-                      <IconCheckCircle className="w-4 h-4" color="#34d399" />
-                      {isTaken ? 'Dose Taken' : 'Mark Taken'}
+                      <IconCheckCircle className="w-4 h-4" color="#ffffff" />
+                      {isTaken ? 'Dose Taken' : 'Mark Taken (+15 pts)'}
                     </button>
 
                     <button
                       onClick={() => onMarkMissed(med._id)}
                       disabled={isMissed}
+                      className="btn-ghost"
                       style={{
                         flex: 1,
-                        background: isMissed ? 'rgba(244, 63, 94, 0.25)' : 'rgba(244, 63, 94, 0.1)',
-                        border: '1px solid rgba(244, 63, 94, 0.4)',
-                        color: '#fb7185',
                         padding: '0.65rem',
-                        borderRadius: '10px',
-                        fontWeight: 700,
                         fontSize: '0.85rem',
-                        cursor: isMissed ? 'default' : 'pointer',
-                        display: 'inline-flex',
-                        alignItems: 'center',
+                        opacity: isMissed ? 0.6 : 1,
                         justifyContent: 'center',
-                        gap: '0.4rem',
-                        transition: 'all 0.2s ease',
                       }}
                     >
                       <IconXCircle className="w-4 h-4" color="#fb7185" />
@@ -356,7 +400,7 @@ export const PatientDashboard = ({
           
           {/* Medicine Adherence Bars */}
           <div className="glass-panel" style={{ padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem' }}>Prescription Adherence Breakdown</h3>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem', color: '#f8fafc' }}>Prescription Adherence Breakdown</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
               {(adherence?.medicineWise || []).map((med) => (
                 <div key={med.medicineId || med.name}>
@@ -371,7 +415,7 @@ export const PatientDashboard = ({
                       style={{
                         width: `${med.adherencePercentage}%`,
                         height: '100%',
-                        background: med.adherencePercentage >= 80 ? 'linear-gradient(90deg, #10b981, #34d399)' : med.adherencePercentage >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #f43f5e, #fb7185)',
+                        background: med.adherencePercentage >= 80 ? 'linear-gradient(90deg, #10b981, #34d399)' : med.adherencePercentage >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #e50914, #ff4b5c)',
                         borderRadius: '5px',
                         transition: 'width 0.6s ease',
                       }}
@@ -385,17 +429,17 @@ export const PatientDashboard = ({
           {/* Active Prescriptions Management */}
           <div className="glass-panel" style={{ padding: '2rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.2rem' }}>
-              <h3 style={{ fontSize: '1.35rem', fontWeight: 800 }}>Active Prescriptions ({medicines.length})</h3>
-              <button onClick={onOpenAddMed} className="btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem' }}>
+              <h3 style={{ fontSize: '1.35rem', fontWeight: 800, color: '#f8fafc' }}>Active Prescriptions ({medicines.length})</h3>
+              <button onClick={onOpenAddMed} className="btn-ghost" style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', borderRadius: '10px' }}>
                 <IconPlus className="w-4 h-4" color="#f8fafc" /> Add New
               </button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {medicines.map((m) => (
-                <div key={m._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <div key={m._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem', background: 'rgba(255, 255, 255, 0.03)', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.08)' }}>
                   <div>
-                    <div style={{ fontWeight: 800, fontSize: '1rem' }}>{m.name}</div>
+                    <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc' }}>{m.name}</div>
                     <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
                       {m.dosage} {m.unit} • Daily at {m.scheduledTime} ({m.category})
                     </div>
@@ -419,3 +463,4 @@ export const PatientDashboard = ({
     </div>
   );
 };
+

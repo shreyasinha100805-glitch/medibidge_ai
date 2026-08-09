@@ -104,3 +104,9 @@ export const IconCamera = ({ className = "w-5 h-5", color = "currentColor" }) =>
     <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
   </svg>
 );
+
+export const IconPlay = ({ className = "w-5 h-5", color = "currentColor" }) => (
+  <svg className={className} fill="currentColor" viewBox="0 0 24 24">
+    <path d="M8 5v14l11-7z" />
+  </svg>
+);

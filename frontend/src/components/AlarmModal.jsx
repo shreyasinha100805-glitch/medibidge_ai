@@ -247,7 +247,7 @@ export const AlarmModal = ({
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           <button
             onClick={handleTake}
-            className="btn-primary"
+            className="btn-netflix"
             style={{
               width: '100%',
               justifyContent: 'center',
@@ -263,29 +263,30 @@ export const AlarmModal = ({
             <button
               onClick={() => handleSnooze(5)}
               className="btn-ghost"
-              style={{ justifyContent: 'center', fontSize: '0.85rem', padding: '0.65rem' }}
+              style={{ justifyContent: 'center', fontSize: '0.85rem', padding: '0.65rem', borderRadius: '12px' }}
             >
               ⏰ Snooze 5m
             </button>
             <button
               onClick={() => handleSnooze(10)}
               className="btn-ghost"
-              style={{ justifyContent: 'center', fontSize: '0.85rem', padding: '0.65rem' }}
+              style={{ justifyContent: 'center', fontSize: '0.85rem', padding: '0.65rem', borderRadius: '12px' }}
             >
               ⏰ Snooze 10m
             </button>
             <button
               onClick={handleDismiss}
               style={{
-                background: 'rgba(244, 63, 94, 0.15)',
-                color: '#fb7185',
-                border: '1px solid rgba(244, 63, 94, 0.3)',
+                background: 'rgba(244, 63, 94, 0.2)',
+                color: '#ff4b5c',
+                border: '1px solid rgba(244, 63, 94, 0.4)',
                 padding: '0.65rem',
-                borderRadius: '14px',
-                fontWeight: 700,
+                borderRadius: '12px',
+                fontWeight: 800,
                 fontSize: '0.85rem',
                 cursor: 'pointer',
               }}
+              className="hover:bg-rose-600/30 transition-all"
             >
               ✕ Silence
             </button>
