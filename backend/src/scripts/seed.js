@@ -13,6 +13,8 @@
  * Run with: npm run seed
  */
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import connectDB from '../config/db.js';
 import User from '../models/User.js';
@@ -21,7 +23,8 @@ import MedicationLog from '../models/MedicationLog.js';
 import CaretakerConnection from '../models/CaretakerConnection.js';
 import Notification from '../models/Notification.js';
 
-dotenv.config();
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 // ---- helpers ----------------------------------------------------------
 

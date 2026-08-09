@@ -4,6 +4,44 @@ const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
     "/api";
 
+const buildApiUrl = (endpoint) => {
+    const baseUrl = API_BASE_URL.replace(/\/$/, "");
+    return `${baseUrl}${endpoint}`;
+};
+
+const getResponsePayload = async (response) => {
+    const contentType = response.headers.get("content-type") || "";
+    const text = await response.text();
+
+    if (!text) {
+        return {};
+    }
+
+    if (contentType.includes("application/json")) {
+        try {
+            return JSON.parse(text);
+        } catch {
+            return { message: text };
+        }
+    }
+
+    return { message: text };
+};
+
+const getErrorMessage = (response, data) => {
+    const serverMessage = data?.message || data?.error;
+
+    if (serverMessage) {
+        if (serverMessage.trim().startsWith("<!doctype") || serverMessage.trim().startsWith("<html")) {
+            return `API endpoint returned a web page instead of JSON (${response.status}). Check VITE_API_URL or your /api deployment route.`;
+        }
+
+        return serverMessage;
+    }
+
+    return `API request failed with status ${response.status}.`;
+};
+
 
 // =====================================================
 // AUTH TOKEN
@@ -59,7 +97,7 @@ const getHeaders = (isFormData = false) => {
 
 export const apiCall = async (endpoint, options = {}) => {
 
-    const url = `${API_BASE_URL}${endpoint}`;
+    const url = buildApiUrl(endpoint);
 
     const isFormData = options.body instanceof FormData;
 
@@ -84,14 +122,7 @@ export const apiCall = async (endpoint, options = {}) => {
     try {
 
         const response = await fetch(url, config);
-
-        let data;
-
-        try {
-            data = await response.json();
-        } catch {
-            data = {};
-        }
+        const data = await getResponsePayload(response);
 
 
         // =================================================
@@ -134,9 +165,7 @@ export const apiCall = async (endpoint, options = {}) => {
         if (!response.ok) {
 
             throw new Error(
-                data.message ||
-                data.error ||
-                "API request failed."
+                getErrorMessage(response, data)
             );
         }
 

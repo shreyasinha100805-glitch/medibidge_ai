@@ -2,14 +2,14 @@ import React, { useState } from 'react';
 import { IconXCircle, IconUser, IconShield, IconPill } from './Icons';
 
 export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister, onQuickDemoLogin }) => {
-  if (!isOpen) return null;
-
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [role, setRole] = useState('PATIENT');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
