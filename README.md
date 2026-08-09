@@ -78,4 +78,7 @@ This keeps CORS aligned so browser requests from the Vercel frontend are allowed
 - **Frontend**: React 19, Vite, Custom Glassmorphic CSS Design System, Multilingual i18n Dictionary.
 
 ---
+## video link : https://drive.google.com/file/d/1uz-vOXZoLlkLusGe2nuUg4pLJiN7mPzT/view?usp=drivesdk
 
+## app link:https://medibidge-ai.vercel.app/
+##ppt link: https://drive.google.com/file/d/1bIEIvuDjo0SI01Gh029-GT26H_DaMSl9/view?usp=drivesdk
