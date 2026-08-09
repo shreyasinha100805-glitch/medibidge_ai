@@ -106,7 +106,7 @@ export const PatientDashboard = ({
       <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span className="w-3 h-3 rounded-full bg-red-600 animate-pulse shadow-lg shadow-red-600/50" />
+            <span style={{ width: '12px', height: '12px', borderRadius: '50%', background: '#dc2626', display: 'inline-block', flexShrink: 0 }} />
             <h2 style={{ fontSize: '2.1rem', fontWeight: 900, letterSpacing: '-0.03em' }} className="gradient-text-netflix">
               Patient Command Center
             </h2>
@@ -236,8 +236,8 @@ export const PatientDashboard = ({
               {todayAdherence}% completed today
             </p>
           </div>
-          <div style={{ background: 'rgba(229, 9, 20, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(229, 9, 20, 0.3)' }}>
-            <IconActivity className="w-7 h-7 text-red-500" />
+          <div style={{ background: 'rgba(229, 9, 20, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(229, 9, 20, 0.3)', flexShrink: 0 }}>
+            <IconActivity className="w-7 h-7" color="#ef4444" />
           </div>
         </div>
 
@@ -252,7 +252,7 @@ export const PatientDashboard = ({
               {scheduleSummary.pending > 0 ? 'Requires attention today' : 'All clear for now'}
             </p>
           </div>
-          <div style={{ background: 'rgba(245, 158, 11, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+          <div style={{ background: 'rgba(245, 158, 11, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245, 158, 11, 0.3)', flexShrink: 0 }}>
             <IconClock className="w-7 h-7" color="#fbbf24" />
           </div>
         </div>

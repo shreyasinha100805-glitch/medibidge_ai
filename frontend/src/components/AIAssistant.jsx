@@ -1306,33 +1306,19 @@ export const AIAssistant = ({
           <input
             type="text"
             value={question}
-            onChange={
-              e =>
-                setQuestion(
-                  e.target.value
-                )
-            }
-            onKeyDown={
-              e => {
-
-                if (
-                  e.key === 'Enter'
-                ) {
-
-                  handleSend();
-
-                }
-
-              }
-            }
+            onChange={e => setQuestion(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') handleSend(); }}
             placeholder="Ask MediBridge AI..."
             style={{
-              flex:
-                1,
-              padding:
-                '1rem',
-              borderRadius:
-                '12px'
+              flex: 1,
+              padding: '0.85rem 1.2rem',
+              borderRadius: '12px',
+              background: 'rgba(15, 23, 42, 0.95)',
+              border: '1px solid rgba(139, 92, 246, 0.4)',
+              color: '#ffffff',
+              outline: 'none',
+              fontSize: '0.95rem',
+              fontWeight: 500,
             }}
           />
 

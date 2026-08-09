@@ -144,7 +144,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                   </span>
 
                   <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                    <IconClock style={{ width: '14px', height: '14px' }} color="#64748b" />
+                    <IconClock className="w-4 h-4" color="#64748b" />
                     {item.time || item.scheduledTime || 'Today'}
                   </span>
                 </div>
@@ -187,7 +187,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                       flexShrink: 0,
                     }}
                   >
-                    <IconPill style={{ width: '20px', height: '20px' }} color={isTaken ? '#34d399' : '#06b6d4'} />
+                    <IconPill className="w-5 h-5" color={isTaken ? '#34d399' : '#06b6d4'} />
                   </div>
                   <div>
                     <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>{item.form || 'Tablet / Capsule'}</div>
@@ -217,7 +217,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                     }}
                     title="Test Audio Alarm Sound"
                   >
-                    <IconPlay style={{ width: '14px', height: '14px' }} color="#38bdf8" />
+                    <IconPlay className="w-4 h-4" color="#38bdf8" />
                   </button>
                 )}
               </div>
@@ -226,7 +226,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
               <div style={{ paddingTop: '0.5rem', borderTop: '1px solid rgba(255, 255, 255, 0.08)' }}>
                 {isTaken ? (
                   <div style={{ width: '100%', padding: '0.5rem', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.12)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', fontSize: '0.8rem', fontWeight: 800, textAlign: 'center', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}>
-                    <IconCheckCircle style={{ width: '16px', height: '16px' }} color="#34d399" /> Dose Complete
+                    <IconCheckCircle className="w-4 h-4" color="#34d399" /> Dose Complete
                   </div>
                 ) : (
                   <button
@@ -242,7 +242,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                       gap: '0.4rem',
                     }}
                   >
-                    <IconCheckCircle style={{ width: '16px', height: '16px' }} color="#ffffff" /> Mark Taken (+15 pts)
+                    <IconCheckCircle className="w-4 h-4" color="#ffffff" /> Mark Taken (+15 pts)
                   </button>
                 )}
               </div>

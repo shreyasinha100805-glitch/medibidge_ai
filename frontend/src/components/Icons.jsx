@@ -10,12 +10,17 @@ const getDimensions = (className, style) => {
     else if (className.includes('w-7')) size = 28;
     else if (className.includes('w-8')) size = 32;
     else if (className.includes('w-10')) size = 40;
+    else if (className.includes('w-12')) size = 48;
   }
+  const w = style?.width || `${size}px`;
+  const h = style?.height || `${size}px`;
   return {
-    width: style?.width || `${size}px`,
-    height: style?.height || `${size}px`,
-    minWidth: style?.minWidth || `${size}px`,
-    minHeight: style?.minHeight || `${size}px`,
+    width: w,
+    height: h,
+    minWidth: w,
+    minHeight: h,
+    maxWidth: w,
+    maxHeight: h,
     flexShrink: 0,
     display: 'inline-block',
     verticalAlign: 'middle',
@@ -129,7 +134,7 @@ export const IconCamera = ({ className = "w-5 h-5", color = "currentColor", styl
 );
 
 export const IconPlay = ({ className = "w-5 h-5", color = "currentColor", style }) => (
-  <svg className={className} style={getDimensions(className, style)} fill="currentColor" viewBox="0 0 24 24">
+  <svg className={className} style={getDimensions(className, style)} fill={color} viewBox="0 0 24 24">
     <path d="M8 5v14l11-7z" />
   </svg>
 );
