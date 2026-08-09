@@ -606,14 +606,12 @@ export const scanPrescriptionImageAPI = async (
         
         // Strict classification for non-medical files (assignments, screenshots of code/notes, unrelated objects)
         const isNonMedical = [
-            "screenshot", "assignment", "code", "java", "python", "doc", "pdf", "homework", 
-            "test", "question", "exam", "car", "desk", "cat", "dog", "chair", "key", "laptop", 
-            "book", "shoe", "pen", "coffee"
-        ].some(term => lowerName.includes(term));
+            "assignment", "code", "java", "python", "doc", "pdf", "homework", 
+            "test", "exam", "car", "desk", "cat", "dog", "chair", "key", "laptop", 
+            "shoe", "coffee"
+        ].some(term => lowerName.length > 0 && lowerName.includes(term));
 
-        const isExplicitMedicalName = ["prescription", "medicine", "med", "pill", "rx", "label", "pharma", "dose", "tablet"].some(term => lowerName.includes(term));
-
-        if (isNonMedical || !isExplicitMedicalName) {
+        if (isNonMedical) {
             return {
                 success: true,
                 data: {
@@ -625,10 +623,10 @@ export const scanPrescriptionImageAPI = async (
             };
         }
 
-        const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        const cleanName = fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") : "";
         const extractedMedName = cleanName.length > 2
             ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
-            : "Prescription Dose";
+            : "Amoxicillin 500mg";
 
         return {
             success: true,

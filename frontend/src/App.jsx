@@ -44,8 +44,15 @@ export function App() {
     const saved = localStorage.getItem('medibridge_user');
     return saved ? JSON.parse(saved) : null;
   });
-  const [lang, setLang] = useState('EN');
+  const [lang, setLang] = useState(
+    () => localStorage.getItem('medibridge_lang') || 'EN'
+  );
   const [activeTab, setActiveTab] = useState(user ? (user.role === 'PATIENT' ? 'dashboard' : 'caretaker') : 'home');
+
+  // Persist language choice
+  useEffect(() => {
+    localStorage.setItem('medibridge_lang', lang);
+  }, [lang]);
 
   // Alarm & Sound Settings State
   const [selectedSound, setSelectedSound] = useState(
@@ -108,6 +115,10 @@ export function App() {
       setNotifications(notifData.data.notifications || []);
       setUnreadNotifsCount(notifData.data.unreadCount || 0);
 
+      // Caretaker requests for both roles
+      const reqsData = await getCaretakerRequests().catch(() => ({ data: { connections: [] } }));
+      setCaretakerRequests(reqsData.data?.connections || []);
+
       if (user.role === 'PATIENT') {
         const [todayData, adhData, medData, logsData] = await Promise.all([
           getTodaySchedule(),
@@ -121,12 +132,8 @@ export function App() {
         setMedicines(medData.data.medicines || []);
         setHealthLogs(logsData.data?.logs || []);
       } else if (user.role === 'CARETAKER') {
-        const [patientsData, reqsData] = await Promise.all([
-          getCaretakerPatients(),
-          getCaretakerRequests(),
-        ]);
-        setCaretakerPatients(patientsData.data.patients || []);
-        setCaretakerRequests(reqsData.data.connections || []);
+        const patientsData = await getCaretakerPatients().catch(() => ({ data: { patients: [] } }));
+        setCaretakerPatients(patientsData.data?.patients || []);
       }
     } catch (err) {
       console.error('Error loading data:', err.message);
@@ -348,6 +355,8 @@ export function App() {
             setSelectedSound={setSelectedSound}
             alarmsEnabled={alarmsEnabled}
             setAlarmsEnabled={setAlarmsEnabled}
+            lang={lang}
+            translations={translations}
           />
         )}
 
@@ -362,16 +371,19 @@ export function App() {
           />
         )}
 
-        {activeTab === 'caretaker' && user?.role === 'CARETAKER' && (
+        {activeTab === 'caretaker' && user && (
           <CaretakerDashboard
-            patients={caretakerPatients}
+            user={user}
+            patients={user.role === 'CARETAKER' ? caretakerPatients : []}
             requests={caretakerRequests}
             onSendConnect={handleSendCaretakerRequest}
             onRespondRequest={handleRespondRequest}
             onInspectPatient={handleInspectPatient}
             selectedPatientData={selectedPatientData}
             onCloseInspect={() => setSelectedPatientData(null)}
-            onBack={() => setActiveTab('caretaker')}
+            onBack={() => setActiveTab(user.role === 'PATIENT' ? 'dashboard' : 'home')}
+            lang={lang}
+            translations={translations}
           />
         )}
 
@@ -404,12 +416,16 @@ export function App() {
         isOpen={scanModalOpen}
         onClose={() => setScanModalOpen(false)}
         onAddMedicine={handleAddMedicine}
+        lang={lang}
+        translations={translations}
       />
 
       <ScanMedicineModal
         isOpen={scanMedicineOpen}
         onClose={() => setScanMedicineOpen(false)}
         onAddMedicine={handleAddMedicine}
+        lang={lang}
+        translations={translations}
       />
 
       <HealthLogModal

@@ -38,7 +38,10 @@ export const PatientDashboard = ({
   setSelectedSound,
   alarmsEnabled = true,
   setAlarmsEnabled,
+  lang = 'EN',
+  translations = {},
 }) => {
+  const t = translations[lang] || translations.EN || {};
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -198,26 +201,26 @@ export const PatientDashboard = ({
       {/* 6 MAIN PRIMARY QUICK ACTION BUTTONS */}
       <div className="glass-panel" style={{ padding: '1.25rem' }}>
         <h4 style={{ fontSize: '0.85rem', color: '#94a3b8', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.8rem' }}>
-          ⚡ Primary Quick Action Modules
+          ⚡ {t.quickActions || 'Primary Quick Action Modules'}
         </h4>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
           <button onClick={onOpenScanModal} className="btn-primary" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            📷 Scan Prescription
+            {t.scanPrescriptionBtn || '📷 Scan Prescription'}
           </button>
           <button onClick={onOpenScanMedicineModal} className="btn-netflix" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            💊 Scan Medicine
+            {t.scanMedicineBtn || '💊 Scan Medicine'}
           </button>
           <button onClick={onOpenAddMed} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            📋 My Medicines
+            {t.myMedicinesBtn || '📋 My Medicines'}
           </button>
           <button onClick={onTriggerTestAlarm} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            ⏱ Medicine Reminders
+            {t.remindersBtn || '⏱ Medicine Reminders'}
           </button>
           <button onClick={onOpenHealthLogModal} className="btn-purple" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            🩸 Health Log
+            {t.healthLogBtn || '🩸 Health Log'}
           </button>
           <button onClick={onOpenCaretakerPortal} className="btn-ghost" style={{ padding: '0.8rem 1rem', borderRadius: '12px', justifyContent: 'center' }}>
-            🤝 Caretaker Portal
+            {t.caretakerPortalBtn || '🤝 Caretaker Portal'}
           </button>
         </div>
       </div>

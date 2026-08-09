@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { IconShield } from './Icons';
 
 export const CaretakerDashboard = ({
+  user,
   patients = [],
   requests = [],
   onSendConnect,
@@ -10,10 +11,15 @@ export const CaretakerDashboard = ({
   selectedPatientData,
   onCloseInspect,
   onBack,
+  lang = 'EN',
+  translations = {},
 }) => {
+  const t = translations[lang] || translations.EN || {};
   const [connectEmail, setConnectEmail] = useState('');
   const [connectMsg, setConnectMsg] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isPatient = user?.role === 'PATIENT';
 
   const handleConnectSubmit = async (e) => {
     e.preventDefault();
@@ -23,7 +29,7 @@ export const CaretakerDashboard = ({
 
     try {
       await onSendConnect(connectEmail.trim());
-      setConnectMsg('Connection request sent successfully!');
+      setConnectMsg(t.requestSentSuccess || 'Connection request sent successfully!');
       setConnectEmail('');
     } catch (err) {
       setConnectMsg(`Error: ${err.message}`);
@@ -42,7 +48,7 @@ export const CaretakerDashboard = ({
           className="btn-ghost"
           style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.9rem', fontWeight: 700 }}
         >
-          ← Back to Main Page
+          {t.backToMain || '← Back to Main Page'}
         </button>
       )}
 
@@ -53,36 +59,42 @@ export const CaretakerDashboard = ({
             <IconShield className="w-8 h-8" color="#ffffff" />
           </div>
           <div>
-            <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>Caretaker Command Center</h2>
+            <h2 style={{ fontSize: '2rem', fontWeight: 900 }}>
+              {t.caretakerPortal || 'Caretaker Command Center'}
+            </h2>
             <p style={{ color: '#94a3b8', fontSize: '0.95rem', marginTop: '0.2rem' }}>
-              Real-time patient monitoring, risk level indicators, and instant miss alert tracking.
+              {t.caretakerCenterSubtitle || 'Real-time patient monitoring, risk level indicators, and instant miss alert tracking.'}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Grid: Patients List + Connection Requests */}
+      {/* Grid: Connected Users List + Connection Requests */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '2rem' }}>
         
-        {/* Monitored Patients */}
+        {/* Monitored Patients or Connected Caretakers */}
         <div className="glass-panel" style={{ padding: '2rem' }}>
           <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.4rem' }}>
-            Connected Patients ({patients.length})
+            {isPatient
+              ? `${t.connectedCaretakers || 'Connected Caretakers'} (${patients.length})`
+              : `${t.connectedPatients || 'Connected Patients'} (${patients.length})`}
           </h3>
 
           {patients.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
-              No connected patients yet. Send a request below to start monitoring!
+              {isPatient
+                ? (t.noCaretakersYet || 'No connected caretakers yet. Send a request below to link with a caretaker!')
+                : (t.noPatientsYet || 'No connected patients yet. Send a request below to start monitoring!')}
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               {patients.map((item) => {
-                const patient = item.patient || {};
+                const targetPerson = item.patient || item.caretaker || item;
                 const isHighRisk = item.riskStatus === 'HIGH_RISK';
 
                 return (
                   <div
-                    key={item.connectionId}
+                    key={item.connectionId || item._id}
                     style={{
                       background: isHighRisk ? 'rgba(244, 63, 94, 0.08)' : 'rgba(255, 255, 255, 0.02)',
                       border: isHighRisk ? '1px solid rgba(244, 63, 94, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
@@ -96,27 +108,35 @@ export const CaretakerDashboard = ({
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         <div className={`pulse-dot ${isHighRisk ? 'pulse-dot-rose' : 'pulse-dot-green'}`} />
-                        <h4 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>{patient.name}</h4>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '9999px', background: isHighRisk ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)', color: isHighRisk ? '#fb7185' : '#34d399' }}>
-                          {item.riskStatus}
-                        </span>
+                        <h4 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
+                          {targetPerson.name || 'Connected User'}
+                        </h4>
+                        {item.riskStatus && (
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '9999px', background: isHighRisk ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)', color: isHighRisk ? '#fb7185' : '#34d399' }}>
+                            {item.riskStatus}
+                          </span>
+                        )}
                       </div>
                       <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginTop: '0.3rem' }}>
-                        {patient.email}
+                        {targetPerson.email}
                       </p>
-                      <div style={{ display: 'flex', gap: '1.2rem', marginTop: '0.8rem', fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>
-                        <span>30-Day Score: <strong style={{ color: item.adherenceMonthPercent >= 70 ? '#34d399' : '#fb7185' }}>{item.adherenceMonthPercent}%</strong></span>
-                        <span>Today: {item.todaySummary.taken}/{item.todaySummary.total} Doses Logged</span>
-                      </div>
+                      {item.todaySummary && (
+                        <div style={{ display: 'flex', gap: '1.2rem', marginTop: '0.8rem', fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>
+                          <span>30-Day Score: <strong style={{ color: (item.adherenceMonthPercent || 0) >= 70 ? '#34d399' : '#fb7185' }}>{item.adherenceMonthPercent || 0}%</strong></span>
+                          <span>Today: {item.todaySummary.taken}/{item.todaySummary.total} Doses Logged</span>
+                        </div>
+                      )}
                     </div>
 
-                    <button
-                      onClick={() => onInspectPatient(patient._id)}
-                      className="btn-ghost"
-                      style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}
-                    >
-                      View Report
-                    </button>
+                    {!isPatient && onInspectPatient && targetPerson._id && (
+                      <button
+                        onClick={() => onInspectPatient(targetPerson._id)}
+                        className="btn-ghost"
+                        style={{ padding: '0.6rem 1rem', fontSize: '0.85rem' }}
+                      >
+                        {t.viewReport || 'View Report'}
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -129,9 +149,11 @@ export const CaretakerDashboard = ({
           
           {/* Send Request Form */}
           <div className="glass-panel" style={{ padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.8rem' }}>Connect with a Patient</h3>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '0.8rem' }}>
+              {t.connectWithUser || 'Connect with a Patient / Caretaker'}
+            </h3>
             <p style={{ fontSize: '0.85rem', color: '#94a3b8', marginBottom: '1.2rem' }}>
-              Enter the patient's registered email address to request caretaker access.
+              {t.connectPatientSubtitle || "Enter the registered email address to request access."}
             </p>
 
             <form onSubmit={handleConnectSubmit} style={{ display: 'flex', gap: '0.8rem' }}>
@@ -140,11 +162,11 @@ export const CaretakerDashboard = ({
                 required
                 value={connectEmail}
                 onChange={(e) => setConnectEmail(e.target.value)}
-                placeholder="patient@demo.com"
+                placeholder="user@demo.com"
                 style={{ flex: 1, background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)', color: '#fff', padding: '0.8rem 1.2rem', borderRadius: '12px', outline: 'none' }}
               />
               <button type="submit" className="btn-primary" disabled={loading}>
-                Send Request
+                {loading ? (t.sending || 'Sending...') : (t.sendRequest || 'Send Request')}
               </button>
             </form>
 
@@ -157,20 +179,24 @@ export const CaretakerDashboard = ({
 
           {/* Pending Requests List */}
           <div className="glass-panel" style={{ padding: '2rem' }}>
-            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem' }}>Pending Caretaker Invitations</h3>
+            <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem' }}>
+              {t.pendingInvitations || 'Pending Caretaker Invitations'}
+            </h3>
             
             {requests.length === 0 ? (
-              <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>No pending caretaker invitations.</div>
+              <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
+                {t.noPendingInvitations || 'No pending invitations.'}
+              </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                 {requests.map((req) => (
                   <div key={req._id} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1.2rem', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '14px', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
                     <div>
                       <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>
-                        📩 "Patient {req.patientId?.name || req.patientEmail || 'User'} has invited you as their caretaker."
+                        📩 Connection invitation from: {req.patientId?.name || req.caretakerId?.name || req.patientEmail || req.caretakerEmail || 'User'} ({req.patientId?.email || req.caretakerId?.email || ''})
                       </div>
                       <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                        Accepting grants access to view medication adherence and health log alerts permitted by patient.
+                        Accepting grants access to view medication adherence and health log alerts.
                       </div>
                     </div>
 
@@ -181,14 +207,14 @@ export const CaretakerDashboard = ({
                           className="btn-primary"
                           style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', justifyContent: 'center' }}
                         >
-                          ✓ Accept Invitation
+                          {t.acceptInvite || '✓ Accept Invitation'}
                         </button>
                         <button
                           onClick={() => onRespondRequest(req._id, 'REJECTED')}
                           className="btn-ghost"
                           style={{ flex: 1, padding: '0.6rem', fontSize: '0.85rem', justifyContent: 'center', border: '1px solid rgba(244, 63, 94, 0.4)', color: '#fb7185' }}
                         >
-                          ✕ Reject
+                          {t.rejectInvite || '✕ Reject'}
                         </button>
                       </div>
                     )}
@@ -211,26 +237,32 @@ export const CaretakerDashboard = ({
             </button>
 
             <h3 style={{ fontSize: '1.8rem', fontWeight: 900, marginBottom: '0.4rem' }}>
-              Patient Inspection: {selectedPatientData.patient.name}
+              {t.patientInspection || 'Patient Inspection'}: {selectedPatientData.patient?.name}
             </h3>
-            <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>{selectedPatientData.patient.email}</p>
+            <p style={{ color: '#94a3b8', marginBottom: '1.5rem' }}>{selectedPatientData.patient?.email}</p>
 
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1.5rem' }}>
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1.2rem', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>30-Day Adherence Score</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                  {t.adherenceScore || '30-Day Adherence Score'}
+                </div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#38bdf8', marginTop: '0.2rem' }}>
-                  {selectedPatientData.summary.adherenceMonthPercent}%
+                  {selectedPatientData.summary?.adherenceMonthPercent}%
                 </div>
               </div>
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1.2rem', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <div style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>Active Prescriptions</div>
+                <div style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase' }}>
+                  {t.activePrescriptions || 'Active Prescriptions'}
+                </div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#34d399', marginTop: '0.2rem' }}>
-                  {selectedPatientData.summary.activeMedicinesCount}
+                  {selectedPatientData.summary?.activeMedicinesCount}
                 </div>
               </div>
             </div>
 
-            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1rem' }}>Today's Doses</h4>
+            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginBottom: '1rem' }}>
+              {t.todayDoses || "Today's Doses"}
+            </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
               {(selectedPatientData.todaySchedule || []).map((s) => (
                 <div key={s._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1rem', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
@@ -238,7 +270,7 @@ export const CaretakerDashboard = ({
                     <strong style={{ fontSize: '0.95rem' }}>{s.medicineId?.name}</strong>
                     <span style={{ fontSize: '0.8rem', color: '#94a3b8', marginLeft: '0.6rem' }}>({s.medicineId?.scheduledTime})</span>
                   </div>
-                  <span className={`badge-status badge-${s.status.toLowerCase()}`}>{s.status}</span>
+                  <span className={`badge-status badge-${(s.status || '').toLowerCase()}`}>{s.status}</span>
                 </div>
               ))}
             </div>
