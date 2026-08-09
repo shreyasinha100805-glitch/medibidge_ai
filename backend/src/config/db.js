@@ -1,11 +1,14 @@
 import mongoose from 'mongoose';
 
+const DEFAULT_MONGODB_URI = 'mongodb+srv://shreyasinha100805_db_user:3304T6v7piVWWbJb@medibridge-ai.2vphpdv.mongodb.net/?appName=medibridge-ai';
+
 const connectDB = async () => {
   try {
-    const uri = process.env.MONGODB_URI;
-    if (!uri) {
-      throw new Error('MONGODB_URI is not defined in environment variables');
+    if (mongoose.connection.readyState >= 1) {
+      return mongoose.connection;
     }
+
+    const uri = process.env.MONGODB_URI || DEFAULT_MONGODB_URI;
 
     const conn = await mongoose.connect(uri);
 
@@ -22,7 +25,7 @@ const connectDB = async () => {
     return conn;
   } catch (error) {
     console.error(`❌ Failed to connect to MongoDB: ${error.message}`);
-    process.exit(1);
+    throw error;
   }
 };
 
