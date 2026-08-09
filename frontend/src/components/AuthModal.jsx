@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { IconXCircle, IconUser, IconShield, IconPill } from './Icons';
 
 export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister, onQuickDemoLogin }) => {
   const [email, setEmail] = useState('');

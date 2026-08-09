@@ -2,8 +2,6 @@ import React, { useState } from 'react';
 import { IconXCircle } from './Icons';
 
 export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
-  if (!isOpen) return null;
-
   const [name, setName] = useState('');
   const [dosage, setDosage] = useState(1);
   const [unit, setUnit] = useState('tablet');
@@ -12,6 +10,8 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
   const [instructions, setInstructions] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  if (!isOpen) return null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();

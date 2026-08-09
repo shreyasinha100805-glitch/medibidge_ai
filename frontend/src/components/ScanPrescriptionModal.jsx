@@ -1,8 +1,17 @@
 import React, { useState } from 'react';
-import { IconCamera, IconXCircle, IconSparkles, IconCheckCircle, IconPill } from './Icons';
+import { IconCamera, IconSparkles, IconCheckCircle } from './Icons';
 import { scanPrescriptionImageAPI } from '../api';
 
 export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
+  const [imagePreview, setImagePreview] = useState(null);
+  const [imageBase64, setImageBase64] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [extractedData, setExtractedData] = useState(null);
+  const [error, setError] = useState('');
+  const [adding, setAdding] = useState(false);
+
+  const [fileName, setFileName] = useState('');
+
   if (!isOpen) return null;
 
   const normalizeFrequency = (frequency) => {
@@ -14,15 +23,6 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine }) => {
     const validCategories = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Supplement', 'Other'];
     return validCategories.includes(category) ? category : 'Other';
   };
-
-  const [imagePreview, setImagePreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
-  const [scanning, setScanning] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
-  const [error, setError] = useState('');
-  const [adding, setAdding] = useState(false);
-
-  const [fileName, setFileName] = useState('');
 
   // Handle Image Upload
   const handleImageChange = (e) => {

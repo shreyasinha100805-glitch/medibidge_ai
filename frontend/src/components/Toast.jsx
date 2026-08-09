@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconCheckCircle, IconXCircle, IconSparkles, IconBell } from './Icons';
+import { IconCheckCircle, IconXCircle, IconSparkles } from './Icons';
 
 export const Toast = ({ toast, onClose }) => {
   if (!toast) return null;

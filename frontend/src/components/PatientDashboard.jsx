@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React from 'react';
 import {
-  IconPill,
   IconCheckCircle,
   IconXCircle,
   IconClock,
@@ -8,7 +7,6 @@ import {
   IconPlus,
   IconTrash,
   IconRefresh,
-  IconSparkles,
   IconCamera,
 } from './Icons';
 
@@ -17,17 +15,6 @@ import { DailyTrendBarChart } from './Charts';
 import { SOUND_PROFILES, playSoundTone } from '../utils/alarmAudio';
 
 const HOSPITAL_SEARCH_URL = 'https://www.google.com/maps/search/hospitals+near+me';
-
-function getScheduledDate(time) {
-  if (!time || !/^([01]\d|2[0-3]):([0-5]\d)$/.test(time)) {
-    return null;
-  }
-
-  const [hours, minutes] = time.split(':').map(Number);
-  const date = new Date();
-  date.setHours(hours, minutes, 0, 0);
-  return date;
-}
 
 export const PatientDashboard = ({
   scheduleSummary,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconActivity, IconShield, IconSparkles, IconCheckCircle, IconBrain, IconPill } from './Icons';
+import { IconActivity, IconShield, IconCheckCircle, IconBrain } from './Icons';
 import { DailyTrendBarChart, AdherenceDonutGauge } from './Charts';
 
 export const ImpactDashboard = ({ adherence, onBack }) => {

@@ -2,7 +2,6 @@ import React from 'react';
 import {
   IconPill,
   IconBell,
-  IconUser,
   IconShield,
   IconGlobe,
   IconBrain,

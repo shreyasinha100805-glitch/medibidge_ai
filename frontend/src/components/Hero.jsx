@@ -4,15 +4,10 @@ import {
   IconBrain,
   IconShield,
   IconActivity,
-  IconArrowRight,
   IconSparkles,
-  IconCheckCircle,
-  IconClock,
 } from './Icons';
 
-export const Hero = ({ onOpenAuth, onQuickDemoLogin, translations, lang }) => {
-  const t = translations[lang] || translations.EN;
-
+export const Hero = ({ onQuickDemoLogin }) => {
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '4rem 1.5rem', textAlign: 'center' }}>
       

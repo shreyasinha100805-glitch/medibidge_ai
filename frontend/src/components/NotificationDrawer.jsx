@@ -1,5 +1,5 @@
 import React from 'react';
-import { IconBell, IconXCircle, IconCheckCircle } from './Icons';
+import { IconBell, IconXCircle } from './Icons';
 
 export const NotificationDrawer = ({ isOpen, onClose, notifications = [], onMarkRead, onMarkAllRead }) => {
   if (!isOpen) return null;

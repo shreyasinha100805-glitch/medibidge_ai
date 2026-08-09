@@ -1,14 +1,5 @@
 import React, { useState } from 'react';
-import {
-  IconShield,
-  IconUser,
-  IconActivity,
-  IconCheckCircle,
-  IconXCircle,
-  IconPlus,
-  IconClock,
-  IconBell,
-} from './Icons';
+import { IconShield } from './Icons';
 
 export const CaretakerDashboard = ({
   patients = [],

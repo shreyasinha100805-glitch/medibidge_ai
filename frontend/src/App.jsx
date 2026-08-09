@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { AuthModal } from './components/AuthModal';
@@ -12,12 +12,10 @@ import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
 import { AlarmModal } from './components/AlarmModal';
 import { Toast } from './components/Toast';
 import { translations } from './translations';
-import { playSoundTone } from './utils/alarmAudio';
 
 import {
   loginUser,
   registerUser,
-  getMe,
   getTodaySchedule,
   markMedicineTaken,
   markMedicineMissed,
@@ -26,7 +24,6 @@ import {
   addMedicine,
   deleteMedicine,
   askAIAssistant,
-  getAIHistory,
   getCaretakerPatients,
   getPatientDashboardForCaretaker,
   sendCaretakerRequest,
@@ -86,35 +83,16 @@ export function App() {
   const [medicines, setMedicines] = useState([]);
 
   // AI state
-  const [aiHistory, setAIHistory] = useState([]);
+  const [aiHistory] = useState([]);
 
   // Caretaker state
   const [caretakerPatients, setCaretakerPatients] = useState([]);
   const [caretakerRequests, setCaretakerRequests] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
 
-  // Load User & Core Data on mount or user change
-  useEffect(() => {
-    if (user) {
-      fetchUserData();
-    }
-  }, [user]);
+  const fetchUserData = useCallback(async () => {
+    if (!user) return;
 
-  useEffect(() => {
-    const handleAuthExpired = () => {
-      setUser(null);
-      setActiveTab('home');
-      showToast('Your session expired. Please login again.', 'error');
-    };
-
-    window.addEventListener('medibridge:auth-expired', handleAuthExpired);
-
-    return () => {
-      window.removeEventListener('medibridge:auth-expired', handleAuthExpired);
-    };
-  }, []);
-
-  const fetchUserData = async () => {
     try {
       // Notifications
       const notifData = await getNotifications();
@@ -142,7 +120,26 @@ export function App() {
     } catch (err) {
       console.error('Error loading data:', err.message);
     }
-  };
+  }, [user]);
+
+  // Load User & Core Data on mount or user change
+  useEffect(() => {
+    fetchUserData();
+  }, [fetchUserData]);
+
+  useEffect(() => {
+    const handleAuthExpired = () => {
+      setUser(null);
+      setActiveTab('home');
+      showToast('Your session expired. Please login again.', 'error');
+    };
+
+    window.addEventListener('medibridge:auth-expired', handleAuthExpired);
+
+    return () => {
+      window.removeEventListener('medibridge:auth-expired', handleAuthExpired);
+    };
+  }, []);
 
   // Auth actions
   const handleLogin = async (email, password) => {
@@ -408,4 +405,3 @@ export function App() {
 }
 
 export default App;
-
