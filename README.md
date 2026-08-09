@@ -46,17 +46,6 @@ MediBridge AI is an end-to-end healthcare platform designed to solve the $300B g
 
 ---
 
-## 🌐 Live Deployment Guide (Vercel & Render)
-
-### Deploying Frontend to Vercel
-1. Log in to [Vercel](https://vercel.com) with your GitHub account.
-2. Click **Add New Project** and select `shreyasinha100805-glitch/medibidge_ai`.
-3. Set **Root Directory** to `frontend`.
-4. Framework Preset: `Vite` (Build Command: `npm run build`, Output Directory: `dist`).
-5. (Optional) Set Environment Variable `VITE_API_URL` to your backend URL.
-6. Click **Deploy** to receive your live Vercel URL!
-
----
 
 ## 🛠️ Tech Stack
 
@@ -67,27 +56,3 @@ MediBridge AI is an end-to-end healthcare platform designed to solve the $300B g
 
 ---
 
-## 🚀 Quick Start Guide
-
-### 1. Seed Demo Database
-```bash
-cd backend
-npm run seed
-```
-Demo credentials:
-- **Patient**: `amal@demo.com` / `Demo@123`
-- **Caretaker**: `nimani@demo.com` / `Demo@123`
-
-### 2. Start Backend Server
-```bash
-cd backend
-npm start
-```
-Runs on `http://localhost:5000`.
-
-### 3. Start Frontend App
-```bash
-cd frontend
-npm run dev
-```
-Runs on `http://localhost:5173`.
