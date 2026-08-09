@@ -11,10 +11,10 @@ export const Hero = ({ onQuickDemoLogin }) => {
   return (
     <div style={{ maxWidth: '1280px', margin: '0 auto', padding: '3.5rem 1.5rem 4rem', textAlign: 'center' }}>
       
-      {/* Top Floating Netflix-Style Badge */}
-      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.6rem', background: 'rgba(229, 9, 20, 0.15)', border: '1px solid rgba(229, 9, 20, 0.4)', padding: '0.55rem 1.4rem', borderRadius: '9999px', color: '#ff4b5c', fontSize: '0.85rem', fontWeight: 800, marginBottom: '2rem', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(229, 9, 20, 0.3)' }}>
-        <IconSparkles className="w-4 h-4 text-red-500 animate-pulse" />
-        NETFLIX-TIER CINEMATIC UX • REAL-TIME AI MEDICATION ALARM & ADHERENCE ENGINE
+      {/* Top Floating Badge */}
+      <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.6rem', background: 'rgba(6, 182, 212, 0.12)', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '0.45rem 1.2rem', borderRadius: '9999px', color: '#38bdf8', fontSize: '0.85rem', fontWeight: 800, marginBottom: '1.8rem', backdropFilter: 'blur(12px)' }}>
+        <IconSparkles className="w-4 h-4 text-cyan-400" />
+        ⚡ Real-Time AI Medication Alarm & Adherence Platform
       </div>
 
       {/* Hero Headline */}
