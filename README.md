@@ -1,6 +1,6 @@
 # 💊 MediBridge AI — Intelligent Medication Adherence & Alarm Platform
 
-> **Hackathon Prize-Winning Edition** — Real-time dose engine, Web Audio alarm synthesizer, interactive alarm trigger modal, caretaker risk shield, visual adherence analytics, and context-aware Gemini AI health assistant.
+> **MediBridge AI** — Intelligent Medication Adherence Platform with Real-Time Alarms & Gemini AI.
 
 MediBridge AI is an end-to-end healthcare platform designed to solve the $300B global problem of medication non-adherence. By combining minute-precision automated dose tracking, procedural audio alarm alerts, interactive snooze controls, multi-patient caretaker oversight, visual adherence charts, and a Gemini-powered AI Assistant with built-in medical safety guardrails, MediBridge AI helps patients stay consistent with critical treatments.
 
