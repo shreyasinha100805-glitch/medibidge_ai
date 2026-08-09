@@ -6,6 +6,29 @@ MediBridge AI is an end-to-end healthcare platform designed to solve the $300B g
 
 ---
 
+## Deployment
+
+The frontend and backend are deployed as separate services:
+
+- Frontend: Vercel
+- Backend: Render, configured from `backend/render.yaml`
+
+When deploying the frontend separately from the backend, set this Vercel environment variable before building:
+
+```env
+VITE_API_URL=https://medibridge-backend.onrender.com/api
+```
+
+Vite reads `VITE_API_URL` at build time in `frontend/src/api.js`. If it is missing, the frontend falls back to `/api`; on Vercel that relative path can be handled by the SPA rewrite and return `index.html` instead of reaching Express, causing `405` errors on `POST /api/auth/register`, `POST /api/auth/login`, and other API requests. After changing `VITE_API_URL`, trigger a new Vercel deployment.
+
+On Render, set the backend `CLIENT_URL` environment variable to the deployed Vercel frontend URL:
+
+```env
+CLIENT_URL=https://medibidge-ai.vercel.app
+```
+
+This keeps CORS aligned so browser requests from the Vercel frontend are allowed by the Express backend.
+
 ## ✨ Key Features & Enhancements
 
 ### 1. 🔔 Web Audio Alarm Synthesizer & Sound Customizer

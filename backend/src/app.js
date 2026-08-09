@@ -13,16 +13,35 @@ import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 
 const app = express();
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  ...(process.env.ALLOWED_ORIGINS || '').split(','),
+]
+  .map((origin) => origin?.trim())
+  .filter(Boolean);
+
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes('*')) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  const isLocalhost =
+    origin.includes('localhost') ||
+    origin.includes('127.0.0.1');
+
+  return isLocalhost || origin.endsWith('.vercel.app');
+};
+
 // ---- Security & core middleware ----------------------------------
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl) or any localhost/vercel domain
-      if (!origin || origin.includes('localhost') || origin.includes('127.0.0.1') || origin.endsWith('.vercel.app') || process.env.CLIENT_URL === '*') {
+      // Allow requests with no origin (mobile apps, curl), local dev, configured client URLs, and Vercel preview/prod domains.
+      if (isAllowedOrigin(origin)) {
         callback(null, true);
       } else {
-        callback(null, true);
+        callback(new Error(`Not allowed by CORS: ${origin}`));
       }
     },
     credentials: true,

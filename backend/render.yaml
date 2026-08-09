@@ -17,4 +17,4 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: CLIENT_URL
-        value: "*"
+        value: https://medibidge-ai.vercel.app
