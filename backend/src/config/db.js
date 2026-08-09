@@ -1,34 +1,53 @@
 import mongoose from 'mongoose';
 
-const connectDB = async () => {
-  try {
-    if (mongoose.connection.readyState >= 1) {
-      return mongoose.connection;
-    }
+const mongoTimeoutMs = Number(process.env.MONGODB_TIMEOUT_MS) || 10000;
 
+let cached = global.mongoose;
+if (!cached) {
+  cached = global.mongoose = { conn: null, promise: null };
+}
+
+const connectDB = async () => {
+  if (cached.conn && mongoose.connection.readyState === 1) {
+    return cached.conn;
+  }
+
+  if (mongoose.connection.readyState === 1) {
+    cached.conn = mongoose.connection;
+    return cached.conn;
+  }
+
+  if (!cached.promise) {
     const uri = process.env.MONGODB_URI;
 
     if (!uri) {
-      throw new Error('MONGODB_URI is not configured.');
+      throw new Error('MONGODB_URI is not configured in environment variables.');
     }
 
-    const conn = await mongoose.connect(uri);
+    const opts = {
+      serverSelectionTimeoutMS: mongoTimeoutMs,
+      connectTimeoutMS: mongoTimeoutMs,
+      maxPoolSize: 10,
+    };
 
-    console.log(`✅ MongoDB connected: ${conn.connection.host}`);
-
-    mongoose.connection.on('error', (err) => {
-      console.error(`MongoDB connection error: ${err}`);
+    cached.promise = mongoose.connect(uri, opts).then((m) => {
+      console.log(`✅ MongoDB connected: ${m.connection.host}`);
+      return m.connection;
+    }).catch((err) => {
+      cached.promise = null;
+      console.error(`❌ Failed to connect to MongoDB: ${err.message}`);
+      throw err;
     });
-
-    mongoose.connection.on('disconnected', () => {
-      console.warn('MongoDB disconnected');
-    });
-
-    return conn;
-  } catch (error) {
-    console.error(`❌ Failed to connect to MongoDB: ${error.message}`);
-    throw error;
   }
+
+  try {
+    cached.conn = await cached.promise;
+  } catch (err) {
+    cached.promise = null;
+    throw err;
+  }
+
+  return cached.conn;
 };
 
 export default connectDB;

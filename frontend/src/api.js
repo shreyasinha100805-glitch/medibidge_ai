@@ -4,6 +4,10 @@ const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
     "/api";
 
+const API_TIMEOUT_MS =
+    Number(import.meta.env.VITE_API_TIMEOUT_MS) ||
+    30000;
+
 const buildApiUrl = (endpoint) => {
     const baseUrl = API_BASE_URL.replace(/\/$/, "");
     return `${baseUrl}${endpoint}`;
@@ -100,9 +104,23 @@ export const apiCall = async (endpoint, options = {}) => {
     const url = buildApiUrl(endpoint);
 
     const isFormData = options.body instanceof FormData;
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+        () => controller.abort(),
+        API_TIMEOUT_MS
+    );
+
+    if (options.signal) {
+        options.signal.addEventListener(
+            "abort",
+            () => controller.abort(),
+            { once: true }
+        );
+    }
 
     const config = {
         ...options,
+        signal: controller.signal,
 
         headers: {
             ...getHeaders(isFormData),
@@ -172,6 +190,11 @@ export const apiCall = async (endpoint, options = {}) => {
         return data;
 
     } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error(
+                "The backend is taking too long to respond. Please try again in a few seconds."
+            );
+        }
 
         console.error(
             `API Error [${endpoint}]:`,
@@ -179,6 +202,8 @@ export const apiCall = async (endpoint, options = {}) => {
         );
 
         throw error;
+    } finally {
+        window.clearTimeout(timeoutId);
     }
 };
 

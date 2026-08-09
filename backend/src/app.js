@@ -3,6 +3,8 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import mongoose from 'mongoose';
+import connectDB from './config/db.js';
 import medicineRoutes from './routes/medicineRoutes.js';
 import medicationRoutes from './routes/medicationRoutes.js';
 import authRoutes from './routes/authRoutes.js';
@@ -12,6 +14,8 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import { errorHandler, notFound } from './middleware/errorMiddleware.js';
 
 const app = express();
+
+app.set('trust proxy', 1);
 
 const allowedOrigins = [
   process.env.CLIENT_URL,
@@ -57,17 +61,17 @@ if (process.env.NODE_ENV !== 'production') {
 // General API rate limiter (protects against brute force / abuse)
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 300,
+  max: 1000,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many requests, please try again later.' },
 });
 app.use('/api', apiLimiter);
 
-// Stricter limiter specifically for auth endpoints (brute-force protection)
+// Auth endpoint rate limiter
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: { success: false, message: 'Too many auth attempts, please try again later.' },
@@ -76,7 +80,33 @@ app.use('/api/auth', authLimiter);
 
 // ---- Health check ---------------------------------------------------
 app.get('/api/health', (req, res) => {
-  res.status(200).json({ success: true, message: 'MediBridge AI API is running.' });
+  res.status(200).json({
+    success: true,
+    message: 'MediBridge AI API is running.',
+    database: mongoose.connection.readyState === 1 ? 'connected' : 'connecting',
+  });
+});
+
+app.use('/api', async (req, res, next) => {
+  if (mongoose.connection.readyState === 1) {
+    next();
+    return;
+  }
+
+  try {
+    await connectDB();
+    if (mongoose.connection.readyState === 1) {
+      next();
+      return;
+    }
+  } catch (err) {
+    console.error('Database connection error in middleware:', err.message);
+  }
+
+  res.status(503).json({
+    success: false,
+    message: 'Backend is starting up. Please try again in a few seconds.',
+  });
 });
 
 // ---- Routes -----------------------------------------------------------
