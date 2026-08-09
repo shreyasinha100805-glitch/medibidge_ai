@@ -93,37 +93,61 @@ export const Navbar = ({
 
               {/* Patient Tabs */}
               {user.role === 'PATIENT' && (
-                <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(15, 23, 42, 0.9)', padding: '0.25rem', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
                   <button
                     onClick={() => setActiveTab('dashboard')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                      activeTab === 'dashboard'
-                        ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: activeTab === 'dashboard' ? 'linear-gradient(135deg, #e50914, #ff4b5c)' : 'transparent',
+                      color: activeTab === 'dashboard' ? '#ffffff' : '#94a3b8',
+                      boxShadow: activeTab === 'dashboard' ? '0 2px 10px rgba(229, 9, 20, 0.4)' : 'none',
+                    }}
                   >
                     Dashboard
                   </button>
                   <button
                     onClick={() => setActiveTab('ai')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      activeTab === 'ai'
-                        ? 'bg-purple-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      background: activeTab === 'ai' ? '#8b5cf6' : 'transparent',
+                      color: activeTab === 'ai' ? '#ffffff' : '#94a3b8',
+                      boxShadow: activeTab === 'ai' ? '0 2px 10px rgba(139, 92, 246, 0.4)' : 'none',
+                    }}
                   >
-                    <IconBrain className="w-3.5 h-3.5" color="currentColor" />
+                    <IconBrain style={{ width: '15px', height: '15px' }} color="currentColor" />
                     AI Assistant
                   </button>
                   <button
                     onClick={() => setActiveTab('impact')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      activeTab === 'impact'
-                        ? 'bg-amber-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      background: activeTab === 'impact' ? '#f59e0b' : 'transparent',
+                      color: activeTab === 'impact' ? '#ffffff' : '#94a3b8',
+                      boxShadow: activeTab === 'impact' ? '0 2px 10px rgba(245, 158, 11, 0.4)' : 'none',
+                    }}
                   >
-                    <IconSparkles className="w-3.5 h-3.5" color="currentColor" />
+                    <IconSparkles style={{ width: '15px', height: '15px' }} color="currentColor" />
                     Impact
                   </button>
                 </div>
@@ -131,27 +155,45 @@ export const Navbar = ({
 
               {/* Caretaker Tab */}
               {user.role === 'CARETAKER' && (
-                <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', background: 'rgba(15, 23, 42, 0.9)', padding: '0.25rem', borderRadius: '12px', border: '1px solid rgba(255, 255, 255, 0.12)' }}>
                   <button
                     onClick={() => setActiveTab('caretaker')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      activeTab === 'caretaker'
-                        ? 'bg-emerald-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      background: activeTab === 'caretaker' ? '#10b981' : 'transparent',
+                      color: activeTab === 'caretaker' ? '#ffffff' : '#94a3b8',
+                      boxShadow: activeTab === 'caretaker' ? '0 2px 10px rgba(16, 185, 129, 0.4)' : 'none',
+                    }}
                   >
-                    <IconShield className="w-3.5 h-3.5" color="currentColor" />
+                    <IconShield style={{ width: '15px', height: '15px' }} color="currentColor" />
                     Caretaker Portal
                   </button>
                   <button
                     onClick={() => setActiveTab('impact')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
-                      activeTab === 'impact'
-                        ? 'bg-amber-600 text-white shadow-md'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
+                    style={{
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.8rem',
+                      fontWeight: 800,
+                      border: 'none',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.4rem',
+                      background: activeTab === 'impact' ? '#f59e0b' : 'transparent',
+                      color: activeTab === 'impact' ? '#ffffff' : '#94a3b8',
+                      boxShadow: activeTab === 'impact' ? '0 2px 10px rgba(245, 158, 11, 0.4)' : 'none',
+                    }}
                   >
-                    <IconSparkles className="w-3.5 h-3.5" color="currentColor" />
+                    <IconSparkles style={{ width: '15px', height: '15px' }} color="currentColor" />
                     Impact
                   </button>
                 </div>

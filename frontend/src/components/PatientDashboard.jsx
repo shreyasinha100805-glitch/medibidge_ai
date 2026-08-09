@@ -271,20 +271,30 @@ export const PatientDashboard = ({
       )}
 
       {/* YouTube Style Search & Filter Pill Bar */}
-      <div className="glass-panel p-5 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="glass-panel" style={{ padding: '1.25rem', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
         {/* Search Input */}
-        <div className="w-full md:w-80 relative">
+        <div style={{ flex: '1', minWidth: '220px', maxWidth: '340px' }}>
           <input
             type="text"
             placeholder="Search prescriptions..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-red-500 transition-all placeholder:text-slate-500 font-medium"
+            style={{
+              width: '100%',
+              background: 'rgba(15, 23, 42, 0.9)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              borderRadius: '12px',
+              padding: '0.6rem 1rem',
+              fontSize: '0.85rem',
+              color: '#ffffff',
+              outline: 'none',
+              fontWeight: 500,
+            }}
           />
         </div>
 
         {/* Filter Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto w-full md:w-auto pb-1 hide-scrollbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.2rem' }} className="hide-scrollbar">
           {[
             { id: 'ALL', label: 'All Doses' },
             { id: 'PENDING', label: 'Pending ⏳' },
