@@ -401,7 +401,7 @@ export const AIAssistant = ({
 
                 pData?.rejectionReason ||
 
-                'The uploaded image could not be identified as a valid prescription.'
+                'This image does not appear to contain a prescription or medicine. Please scan a clear prescription, medicine package, bottle, or tablet.'
 
               );
 

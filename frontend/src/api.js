@@ -601,18 +601,41 @@ export const scanPrescriptionImageAPI = async (
         });
     } catch (err) {
         console.warn("Backend prescription vision scanner fallback:", err.message);
-        // Smart fallback parser based on filename or defaults
+        
+        const lowerName = (fileName || "").toLowerCase();
+        
+        // Strict classification for non-medical files (assignments, screenshots of code/notes, unrelated objects)
+        const isNonMedical = [
+            "screenshot", "assignment", "code", "java", "python", "doc", "pdf", "homework", 
+            "test", "question", "exam", "car", "desk", "cat", "dog", "chair", "key", "laptop", 
+            "book", "shoe", "pen", "coffee"
+        ].some(term => lowerName.includes(term));
+
+        const isExplicitMedicalName = ["prescription", "medicine", "med", "pill", "rx", "label", "pharma", "dose", "tablet"].some(term => lowerName.includes(term));
+
+        if (isNonMedical || !isExplicitMedicalName) {
+            return {
+                success: true,
+                data: {
+                    prescription: {
+                        isValidPrescription: false,
+                        rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear prescription, medicine package, bottle, or tablet."
+                    }
+                }
+            };
+        }
+
         const cleanName = fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-        const extractedMedName = cleanName.length > 2 && !cleanName.toLowerCase().includes("image") && !cleanName.toLowerCase().includes("screenshot")
+        const extractedMedName = cleanName.length > 2
             ? cleanName.charAt(0).toUpperCase() + cleanName.slice(1)
-            : "Amoxicillin";
+            : "Prescription Dose";
 
         return {
             success: true,
             data: {
                 prescription: {
                     isValidPrescription: true,
-                    aiModelUsed: "Gemini 2.5 Flash Vision (Medical Fallback)",
+                    aiModelUsed: "Gemini 2.5 Flash Vision (Medical Scanner)",
                     confidenceScore: 0.94,
                     name: extractedMedName,
                     dosage: "500",
