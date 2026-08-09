@@ -20,6 +20,7 @@ export const Navbar = ({
   unreadCount = 0,
   onOpenNotifications,
   onTriggerTestAlarm,
+  onOpenAuditLogs,
 }) => {
   const t = translations[lang] || translations.EN;
 
@@ -195,6 +196,15 @@ export const Navbar = ({
                   🔔 Sound Test
                 </button>
               )}
+
+              {/* Audit Security Logs Trigger */}
+              <button
+                onClick={onOpenAuditLogs}
+                style={{ background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)', padding: '0.45rem', borderRadius: '10px', color: '#c4b5fd', cursor: 'pointer', display: 'flex', alignItems: 'center' }}
+                title="Security & Audit Logs"
+              >
+                <IconShield className="w-4 h-4" color="#c4b5fd" />
+              </button>
 
               {/* Notifications Trigger */}
               <button

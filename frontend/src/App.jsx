@@ -11,6 +11,7 @@ import { AddMedicineModal } from './components/AddMedicineModal';
 import { ScanPrescriptionModal } from './components/ScanPrescriptionModal';
 import { ScanMedicineModal } from './components/ScanMedicineModal';
 import { HealthLogModal } from './components/HealthLogModal';
+import { AuditLogModal } from './components/AuditLogModal';
 import { AlarmModal } from './components/AlarmModal';
 import { Toast } from './components/Toast';
 import { translations } from './translations';
@@ -69,6 +70,7 @@ export function App() {
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [scanMedicineOpen, setScanMedicineOpen] = useState(false);
   const [healthLogOpen, setHealthLogOpen] = useState(false);
+  const [auditLogOpen, setAuditLogOpen] = useState(false);
 
   // Toast System
   const [toast, setToast] = useState(null);
@@ -309,6 +311,7 @@ export function App() {
         unreadCount={unreadNotifsCount}
         onOpenNotifications={() => setNotifDrawerOpen(true)}
         onTriggerTestAlarm={handleTriggerTestAlarm}
+        onOpenAuditLogs={() => setAuditLogOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -413,6 +416,11 @@ export function App() {
         isOpen={healthLogOpen}
         onClose={() => setHealthLogOpen(false)}
         onSaveLog={handleSaveHealthLog}
+      />
+
+      <AuditLogModal
+        isOpen={auditLogOpen}
+        onClose={() => setAuditLogOpen(false)}
       />
 
       <NotificationDrawer
