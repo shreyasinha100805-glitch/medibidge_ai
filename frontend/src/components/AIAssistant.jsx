@@ -52,8 +52,9 @@ export const AIAssistant = ({
   };
 
   // Convert any time string (12h or 24h) to strict HH:mm required by backend.
+  // Returns null if the time cannot be reliably determined — caller must prompt user.
   const normalizeScheduledTime = (timeStr) => {
-    if (!timeStr) return '08:00';
+    if (!timeStr) return null;
     const cleaned = String(timeStr).trim().toUpperCase();
     if (/^([01]\d|2[0-3]):[0-5]\d$/.test(cleaned)) return cleaned;
     const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
@@ -65,7 +66,7 @@ export const AIAssistant = ({
       else { if (hours !== 12) hours += 12; }
       return `${String(hours).padStart(2, '0')}:${minutes}`;
     }
-    return '08:00';
+    return null;
   };
 
   const [question, setQuestion] =
@@ -690,6 +691,18 @@ export const AIAssistant = ({
 
       try {
 
+        const resolvedTime = normalizeScheduledTime(pData.scheduledTime);
+
+        if (!resolvedTime) {
+          if (showToast) {
+            showToast(
+              '⚠️ Medication time could not be read from the prescription. Please use the Scan Prescription modal to set the time manually before saving.',
+              'error'
+            );
+          }
+          return;
+        }
+
         await onAddMedicine({
 
           name:
@@ -707,9 +720,7 @@ export const AIAssistant = ({
             ),
 
           scheduledTime:
-            normalizeScheduledTime(
-              pData.scheduledTime
-            ),
+            resolvedTime,
 
           frequency:
             normalizeFrequency(

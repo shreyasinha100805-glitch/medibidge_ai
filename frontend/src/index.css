@@ -533,3 +533,37 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 
+
+/* ============================================================
+   MOBILE RESPONSIVE BREAKPOINTS
+   ============================================================ */
+
+@media (max-width: 768px) {
+  .nav-header {
+    border-radius: 0 !important;
+    padding: 0.5rem 1rem !important;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  .glass-panel {
+    max-width: calc(100vw - 2rem) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .glass-panel {
+    padding: 1.25rem !important;
+    border-radius: 16px !important;
+  }
+
+  body {
+    font-size: 14px;
+  }
+}

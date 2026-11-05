@@ -531,11 +531,16 @@ export const PatientDashboard = ({
                     </div>
                   </div>
                   <button
-                    onClick={() => onDeleteMed(m._id)}
-                    style={{ background: 'transparent', border: 'none', color: '#fb7185', cursor: 'pointer', padding: '0.4rem' }}
+                    onClick={() => {
+                      if (window.confirm(`Remove "${m.name}" from your prescriptions? This will delete all associated dose logs and cannot be undone.`)) {
+                        onDeleteMed(m._id);
+                      }
+                    }}
+                    style={{ background: 'rgba(244, 63, 94, 0.08)', border: '1px solid rgba(244, 63, 94, 0.25)', color: '#fb7185', cursor: 'pointer', padding: '0.4rem 0.7rem', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 700 }}
                     title="Delete Prescription"
                   >
                     <IconTrash className="w-4 h-4" color="#fb7185" />
+                    Delete
                   </button>
                 </div>
               ))}

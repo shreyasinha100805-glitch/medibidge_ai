@@ -1,4 +1,4 @@
-// frontend/src/api.js
+﻿// frontend/src/api.js
 
 const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
@@ -558,11 +558,11 @@ export const askAIAssistant = async (question) => {
         let responseText = "";
 
         if (q.includes("why") || q.includes("miss") || q.includes("drop") || q.includes("low")) {
-            responseText = "Your current 30-day medication adherence is **88.5%**.\n\nThe medicine with the lowest adherence rate is **Paracetamol (85%)**.\n\n### 💡 Smart Routine Tips\n• Enable local alarm chimes in your Patient Command Center.\n• Keep dose packages next to morning breakfast or evening tea.\n• Connect a family member or caretaker via the Caretaker Portal for accountability.";
+            responseText = "Your current 30-day medication adherence is **88.5%**.\n\nThe medicine with the lowest adherence rate is **Paracetamol (85%)**.\n\n### ðŸ’¡ Smart Routine Tips\nâ€¢ Enable local alarm chimes in your Patient Command Center.\nâ€¢ Keep dose packages next to morning breakfast or evening tea.\nâ€¢ Connect a family member or caretaker via the Caretaker Portal for accountability.";
         } else if (q.includes("which") || q.includes("most") || q.includes("often")) {
-            responseText = "### 📊 Prescription Analytics\n\n• **Highest Adherence**: Vitamin D3 (92% completion)\n• **Most Frequently Missed**: Paracetamol 500mg (2 missed doses)\n• **Critical Priority**: Gintac 150mg (Take before dinner)\n\nSetting a 10-minute early reminder can improve your evening dose consistency by up to +35%.";
+            responseText = "### ðŸ“Š Prescription Analytics\n\nâ€¢ **Highest Adherence**: Vitamin D3 (92% completion)\nâ€¢ **Most Frequently Missed**: Paracetamol 500mg (2 missed doses)\nâ€¢ **Critical Priority**: Gintac 150mg (Take before dinner)\n\nSetting a 10-minute early reminder can improve your evening dose consistency by up to +35%.";
         } else if (q.includes("routine") || q.includes("tip") || q.includes("evening")) {
-            responseText = "### 🌙 Evening Routine Tip\n\nTo ensure you never miss your evening Gintac 150mg dose at 08:00 PM:\n\n1. Pair taking your medication with filling your evening water glass.\n2. Keep your prescription box clearly visible on your dining table.\n3. Test the built-in alarm audio chime from the top navigation bar.";
+            responseText = "### ðŸŒ™ Evening Routine Tip\n\nTo ensure you never miss your evening Gintac 150mg dose at 08:00 PM:\n\n1. Pair taking your medication with filling your evening water glass.\n2. Keep your prescription box clearly visible on your dining table.\n3. Test the built-in alarm audio chime from the top navigation bar.";
         } else {
             responseText = `You currently have active prescription doses scheduled for today.\n\nYour overall 30-day adherence rate is **88.5%**.\n\nI can help you analyze your prescription images, build personalized schedules, track dose timing, and connect with caretakers!`;
         }
@@ -761,16 +761,8 @@ export const getNotifications = async () => {
     try {
         return await apiCall("/notifications");
     } catch {
-        return {
-            success: true,
-            data: {
-                notifications: [
-                    { _id: "notif_1", title: "Dose Reminder", message: "Time to take your Paracetamol 500mg", isRead: false, createdAt: new Date().toISOString() },
-                    { _id: "notif_2", title: "Adherence Milestone", message: "Great job! 7-day adherence is at 88%", isRead: true, createdAt: new Date().toISOString() }
-                ],
-                unreadCount: 1
-            }
-        };
+        // Return empty list on API failure — never show fake notification data
+        return { success: true, data: { notifications: [], unreadCount: 0 } };
     }
 };
 
