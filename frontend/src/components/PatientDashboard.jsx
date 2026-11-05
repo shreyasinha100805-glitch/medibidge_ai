@@ -389,7 +389,7 @@ export const PatientDashboard = ({
       </div>
 
       {/* Visual 7-Day Trend Chart */}
-      <DailyTrendBarChart data={adherence?.weekTrend} />
+      <DailyTrendBarChart data={adherence?.dailyTrend} />
 
       {/* Main Schedule & Breakdown Section */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: '2rem' }}>

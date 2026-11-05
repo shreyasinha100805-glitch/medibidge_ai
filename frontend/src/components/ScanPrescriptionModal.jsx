@@ -24,6 +24,30 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
     return validCategories.includes(category) ? category : 'Other';
   };
 
+  // Convert any time string to HH:mm (24-hour) format required by the backend.
+  // Handles: "08:00 AM", "2:30 PM", "08:00", "14:30"
+  const normalizeScheduledTime = (timeStr) => {
+    if (!timeStr) return '08:00';
+    const cleaned = timeStr.trim().toUpperCase();
+    // Already 24-hour format: HH:mm
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(cleaned)) return cleaned;
+    // 12-hour format with AM/PM
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+    if (match) {
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2];
+      const period = match[3];
+      if (period === 'AM') {
+        if (hours === 12) hours = 0;
+      } else {
+        if (hours !== 12) hours += 12;
+      }
+      return `${String(hours).padStart(2, '0')}:${minutes}`;
+    }
+    // Fallback
+    return '08:00';
+  };
+
   // Handle Image Upload
   const handleImageChange = (e) => {
     const file = e.target.files[0];
@@ -104,7 +128,7 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
         dosage: Number(extractedData.dosage) || 500,
         unit: extractedData.unit || 'mg',
         category: normalizeCategory(extractedData.category),
-        scheduledTime: extractedData.scheduledTime || '08:00 AM',
+        scheduledTime: normalizeScheduledTime(extractedData.scheduledTime),
         frequency: normalizeFrequency(extractedData.frequency),
         instructions: extractedData.instructions || 'Take as directed.',
       });

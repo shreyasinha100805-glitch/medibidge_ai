@@ -51,6 +51,23 @@ export const AIAssistant = ({
       : 'Other';
   };
 
+  // Convert any time string (12h or 24h) to strict HH:mm required by backend.
+  const normalizeScheduledTime = (timeStr) => {
+    if (!timeStr) return '08:00';
+    const cleaned = String(timeStr).trim().toUpperCase();
+    if (/^([01]\d|2[0-3]):[0-5]\d$/.test(cleaned)) return cleaned;
+    const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
+    if (match) {
+      let hours = parseInt(match[1], 10);
+      const minutes = match[2];
+      const period = match[3];
+      if (period === 'AM') { if (hours === 12) hours = 0; }
+      else { if (hours !== 12) hours += 12; }
+      return `${String(hours).padStart(2, '0')}:${minutes}`;
+    }
+    return '08:00';
+  };
+
   const [question, setQuestion] =
     useState('');
 
@@ -690,8 +707,9 @@ export const AIAssistant = ({
             ),
 
           scheduledTime:
-            pData.scheduledTime ||
-            '',
+            normalizeScheduledTime(
+              pData.scheduledTime
+            ),
 
           frequency:
             normalizeFrequency(
