@@ -687,6 +687,17 @@ export const getCaretakerPatients = async () => {
     }
 };
 
+export const getMyCaretakers = async () => {
+    try {
+        return await apiCall("/caretakers/caretakers");
+    } catch {
+        return {
+            success: true,
+            data: { caretakers: [] }
+        };
+    }
+};
+
 export const getPatientDashboardForCaretaker = async (patientId) => {
     try {
         return await apiCall(`/caretakers/patients/${patientId}/dashboard`);

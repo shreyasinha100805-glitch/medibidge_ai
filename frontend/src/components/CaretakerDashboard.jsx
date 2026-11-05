@@ -21,6 +21,18 @@ export const CaretakerDashboard = ({
 
   const isPatient = user?.role === 'PATIENT';
 
+  // Split requests into INCOMING (needs Accept/Reject) and OUTGOING (sent, waiting)
+  const incomingRequests = requests.filter(
+    (req) => req.direction === 'INCOMING' && req.status === 'PENDING'
+  );
+  const outgoingRequests = requests.filter(
+    (req) => req.direction === 'OUTGOING' && req.status === 'PENDING'
+  );
+  // Fallback for older records without direction: show all PENDING as incoming
+  const legacyPending = requests.filter(
+    (req) => !req.direction && req.status === 'PENDING'
+  );
+
   const handleConnectSubmit = async (e) => {
     e.preventDefault();
     if (!connectEmail.trim()) return;
@@ -183,24 +195,45 @@ export const CaretakerDashboard = ({
               {t.pendingInvitations || 'Pending Caretaker Invitations'}
             </h3>
             
-            {requests.length === 0 ? (
+            {requests.filter(r => r.status === 'PENDING').length === 0 ? (
               <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>
                 {t.noPendingInvitations || 'No pending invitations.'}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                {requests.map((req) => (
-                  <div key={req._id} style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem', padding: '1.2rem', background: 'rgba(6, 182, 212, 0.08)', borderRadius: '14px', border: '1px solid rgba(6, 182, 212, 0.3)' }}>
-                    <div>
-                      <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>
-                        📩 Connection invitation from: {req.patientId?.name || req.caretakerId?.name || req.patientEmail || req.caretakerEmail || 'User'} ({req.patientId?.email || req.caretakerId?.email || ''})
-                      </div>
-                      <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.2rem' }}>
-                        Accepting grants access to view medication adherence and health log alerts.
-                      </div>
-                    </div>
+                {/* INCOMING requests — show Accept / Reject */}
+                {[...incomingRequests, ...legacyPending].map((req) => {
+                  const otherPerson =
+                    user?.role === 'CARETAKER'
+                      ? req.patientId   // caretaker receives from patient
+                      : req.caretakerId; // patient receives from caretaker
+                  const displayName =
+                    otherPerson?.name || req.patientId?.name || req.caretakerId?.name || 'User';
+                  const displayEmail =
+                    otherPerson?.email || req.patientId?.email || req.caretakerId?.email || '';
 
-                    {req.status === 'PENDING' && (
+                  return (
+                    <div
+                      key={req._id}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.8rem',
+                        padding: '1.2rem',
+                        background: 'rgba(6, 182, 212, 0.08)',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(6, 182, 212, 0.3)',
+                      }}
+                    >
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: '1rem', color: '#ffffff' }}>
+                          📩 Connection invitation from: {displayName} ({displayEmail})
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                          Accepting grants access to view medication adherence and health log alerts.
+                        </div>
+                      </div>
+
                       <div style={{ display: 'flex', gap: '0.8rem', marginTop: '0.2rem' }}>
                         <button
                           onClick={() => onRespondRequest(req._id, 'ACCEPTED')}
@@ -217,9 +250,43 @@ export const CaretakerDashboard = ({
                           {t.rejectInvite || '✕ Reject'}
                         </button>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  );
+                })}
+
+                {/* OUTGOING requests — show pending status, no buttons */}
+                {outgoingRequests.map((req) => {
+                  const targetPerson =
+                    user?.role === 'CARETAKER'
+                      ? req.patientId   // caretaker sent request to patient
+                      : req.caretakerId; // patient sent request to caretaker
+                  const displayName =
+                    targetPerson?.name || req.patientId?.name || req.caretakerId?.name || 'User';
+                  const displayEmail =
+                    targetPerson?.email || req.patientId?.email || req.caretakerId?.email || '';
+
+                  return (
+                    <div
+                      key={req._id}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '0.5rem',
+                        padding: '1.2rem',
+                        background: 'rgba(245, 158, 11, 0.07)',
+                        borderRadius: '14px',
+                        border: '1px solid rgba(245, 158, 11, 0.3)',
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#fbbf24' }}>
+                        ⏳ Request sent to: {displayName} ({displayEmail})
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: '#94a3b8' }}>
+                        Waiting for them to accept your connection request.
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

@@ -44,6 +44,7 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
     }
     // If REJECTED, update to PENDING again
     existing.status = 'PENDING';
+    existing.initiatorId = req.user._id;
     await existing.save();
 
     await Notification.create({
@@ -64,6 +65,7 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
     patientId,
     caretakerId,
     status: 'PENDING',
+    initiatorId: req.user._id,
   });
 
   await Notification.create({
@@ -81,20 +83,57 @@ export const sendConnectionRequest = asyncHandler(async (req, res) => {
 });
 
 /**
- * List connection requests for the authenticated user (incoming and outgoing)
+ * List connection requests for the authenticated user (incoming AND outgoing)
+ * Returns all connections where the user is either patient or caretaker,
+ * with a `direction` field: 'INCOMING' or 'OUTGOING' relative to the current user.
  */
 export const getRequests = asyncHandler(async (req, res) => {
-  const isCaretaker = req.user.role === 'CARETAKER';
-  const query = isCaretaker ? { caretakerId: req.user._id } : { patientId: req.user._id };
+  const userId = req.user._id;
 
-  const connections = await CaretakerConnection.find(query)
+  // Fetch both sides: connections where user sent the request AND received it
+  const connections = await CaretakerConnection.find({
+    $or: [{ patientId: userId }, { caretakerId: userId }],
+  })
     .populate('patientId', 'name email profileImage role')
     .populate('caretakerId', 'name email profileImage role')
     .sort({ createdAt: -1 });
 
+  // Annotate each connection with direction from the perspective of the current user
+  const annotated = connections.map((conn) => {
+    const obj = conn.toObject();
+
+    // Determine who initiated the request:
+    // The sender is always the person who called sendConnectionRequest.
+    // We store initiatorId on new requests; for older records fall back to role logic.
+    let direction;
+    if (conn.initiatorId) {
+      direction =
+        conn.initiatorId.toString() === userId.toString()
+          ? 'OUTGOING'
+          : 'INCOMING';
+    } else {
+      // Legacy: assume caretaker always initiates when caretaker is logged in
+      // and patient always initiates when patient is logged in.
+      // We can't know for old records so show as INCOMING to be safe (shows Accept/Reject).
+      // A better heuristic: if the current user is the caretaker, treat as OUTGOING (they sent it),
+      // if the current user is the patient, treat as INCOMING (they received it).
+      direction =
+        req.user.role === 'CARETAKER' &&
+        conn.caretakerId._id?.toString() === userId.toString()
+          ? 'OUTGOING'
+          : req.user.role === 'PATIENT' &&
+            conn.patientId._id?.toString() === userId.toString()
+          ? 'INCOMING'
+          : 'INCOMING';
+    }
+
+    obj.direction = direction;
+    return obj;
+  });
+
   res.status(200).json({
     success: true,
-    data: { connections },
+    data: { connections: annotated },
   });
 });
 

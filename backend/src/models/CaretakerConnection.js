@@ -17,6 +17,12 @@ const caretakerConnectionSchema = new mongoose.Schema(
       enum: ['PENDING', 'ACCEPTED', 'REJECTED'],
       default: 'PENDING',
     },
+    // Tracks who sent the connection request (for direction display in UI)
+    initiatorId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     permissions: {
       viewAdherence: { type: Boolean, default: true },
       viewHealthLogs: { type: Boolean, default: true },

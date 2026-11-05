@@ -30,6 +30,7 @@ import {
   getHealthLogs,
   addHealthLog,
   getCaretakerPatients,
+  getMyCaretakers,
   getPatientDashboardForCaretaker,
   sendCaretakerRequest,
   getCaretakerRequests,
@@ -103,6 +104,7 @@ export function App() {
 
   // Caretaker state
   const [caretakerPatients, setCaretakerPatients] = useState([]);
+  const [patientCaretakers, setPatientCaretakers] = useState([]);
   const [caretakerRequests, setCaretakerRequests] = useState([]);
   const [selectedPatientData, setSelectedPatientData] = useState(null);
 
@@ -120,17 +122,19 @@ export function App() {
       setCaretakerRequests(reqsData.data?.connections || []);
 
       if (user.role === 'PATIENT') {
-        const [todayData, adhData, medData, logsData] = await Promise.all([
+        const [todayData, adhData, medData, logsData, caretakersData] = await Promise.all([
           getTodaySchedule(),
           getAdherenceMetrics(),
           getMedicines(),
           getHealthLogs(),
+          getMyCaretakers().catch(() => ({ data: { caretakers: [] } })),
         ]);
         setScheduleSummary(todayData.data.summary);
         setSchedule(todayData.data.schedule);
         setAdherence(adhData.data);
         setMedicines(medData.data.medicines || []);
         setHealthLogs(logsData.data?.logs || []);
+        setPatientCaretakers(caretakersData.data?.caretakers || []);
       } else if (user.role === 'CARETAKER') {
         const patientsData = await getCaretakerPatients().catch(() => ({ data: { patients: [] } }));
         setCaretakerPatients(patientsData.data?.patients || []);
@@ -374,7 +378,7 @@ export function App() {
         {activeTab === 'caretaker' && user && (
           <CaretakerDashboard
             user={user}
-            patients={user.role === 'CARETAKER' ? caretakerPatients : []}
+            patients={user.role === 'CARETAKER' ? caretakerPatients : patientCaretakers}
             requests={caretakerRequests}
             onSendConnect={handleSendCaretakerRequest}
             onRespondRequest={handleRespondRequest}
