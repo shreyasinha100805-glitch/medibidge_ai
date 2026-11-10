@@ -1,4 +1,4 @@
-﻿// frontend/src/api.js
+// frontend/src/api.js
 
 const API_BASE_URL =
     import.meta.env.VITE_API_URL ||
@@ -195,6 +195,26 @@ export const apiCall = async (endpoint, options = {}) => {
         return data;
 
     } catch (error) {
+        // -------------------------------------------------------
+        // ABORT / TIMEOUT — applies to ALL methods (GET + POST)
+        // Surface a clear message instead of raw browser internals
+        // -------------------------------------------------------
+        if (
+            error.name === 'AbortError' ||
+            (error.message && (
+                error.message.includes('aborted') ||
+                error.message.includes('abort') ||
+                error.message.includes('signal')
+            ))
+        ) {
+            const isScanner = endpoint.includes('scan-prescription');
+            throw new Error(
+                isScanner
+                    ? 'The scan request timed out. Please check your internet connection and try again. Large images may take longer to process.'
+                    : 'The request timed out. Please check your connection and try again.'
+            );
+        }
+
         // Return cached GET data or default mock data if network fails/times out
         if (method === "GET") {
             const memCached = responseCache.get(cacheKey);
@@ -275,12 +295,6 @@ export const apiCall = async (endpoint, options = {}) => {
         }
 
         console.error(`API Error [${endpoint}]:`, error);
-        
-        // Clean error message for signal aborts/timeouts
-        if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-            throw new Error("Request timed out or connection was aborted. Please check backend server.");
-        }
-        
         throw error;
     } finally {
         window.clearTimeout(timeoutId);
@@ -594,12 +608,54 @@ export const scanPrescriptionImageAPI = async (
     mimeType = "image/jpeg",
     fileName = ""
 ) => {
+    // Use a dedicated longer timeout for the vision scanner —
+    // uploading a base64 image to Gemini Vision can take 30-60s.
+    const SCAN_TIMEOUT_MS = 90000;
+    const url = buildApiUrl("/ai/scan-prescription");
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(
+        () => controller.abort(new DOMException("Scan request timed out after 90 seconds.", "TimeoutError")),
+        SCAN_TIMEOUT_MS
+    );
+
     try {
-        return await apiCall("/ai/scan-prescription", {
+        const response = await fetch(url, {
             method: "POST",
+            signal: controller.signal,
+            headers: getHeaders(false),
             body: JSON.stringify({ imageBase64, mimeType, fileName })
         });
+        window.clearTimeout(timeoutId);
+
+        const data = await getResponsePayload(response);
+
+        if (response.status === 401) {
+            clearAuthStorage();
+            notifyAuthExpired();
+            throw new Error("Your session has expired. Please login again.");
+        }
+
+        if (!response.ok) {
+            throw new Error(getErrorMessage(response, data));
+        }
+
+        return data;
+
     } catch (err) {
+        window.clearTimeout(timeoutId);
+
+        // Surface a clear error for timeout/abort — do NOT silently fall through to fake data
+        if (
+            err.name === 'AbortError' ||
+            err.name === 'TimeoutError' ||
+            (err.message && (err.message.includes('aborted') || err.message.includes('timed out')))
+        ) {
+            throw new Error(
+                'The scan request timed out (90s). The AI vision service may be slow or unreachable. ' +
+                'Please check your internet connection and try again.'
+            );
+        }
+
         console.warn("Backend prescription vision scanner fallback:", err.message);
         
         const lowerName = (fileName || "").toLowerCase();

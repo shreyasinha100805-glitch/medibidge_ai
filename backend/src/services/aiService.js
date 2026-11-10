@@ -546,11 +546,22 @@ Return JSON only.
 
     try {
 
+      // 60-second timeout for the Gemini Vision API call.
+      // Without this, a slow/hanging Gemini response causes the
+      // frontend AbortController to fire first, surfacing the cryptic
+      // "signal is aborted without reason" error to the user.
+      const geminiController = new AbortController();
+      const geminiTimeout = setTimeout(
+        () => geminiController.abort(),
+        60000
+      );
+
       const response =
         await fetch(
           `${GEMINI_API_URL}?key=${apiKey}`,
           {
             method: 'POST',
+            signal: geminiController.signal,
 
             headers: {
               'Content-Type':
@@ -597,6 +608,8 @@ Return JSON only.
 
           }
         );
+
+      clearTimeout(geminiTimeout);
 
 
       /*
@@ -902,6 +915,21 @@ Return JSON only.
 
 
     } catch (error) {
+
+      clearTimeout(geminiTimeout);
+
+      // Gemini timed out — return a clear, user-facing rejection
+      // so the frontend can show a helpful message rather than a
+      // raw "signal is aborted without reason" browser error.
+      if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+        console.warn('Gemini Vision API timed out after 60s.');
+        return {
+          isValidPrescription: false,
+          medicines: [],
+          rejectionReason:
+            'The AI vision service took too long to respond. Please try again in a moment.'
+        };
+      }
 
       console.error(
         'Prescription AI error:',
