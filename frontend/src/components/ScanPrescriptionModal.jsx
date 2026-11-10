@@ -1,59 +1,124 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { IconCamera, IconSparkles, IconCheckCircle } from './Icons';
 import { scanPrescriptionImageAPI } from '../api';
 
-export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = 'EN', translations = {} }) => {
+/*
+ * ScanPrescriptionModal
+ *
+ * Security rules enforced here:
+ *  1. All prior results are wiped the moment a new file is chosen.
+ *  2. File-name keyword pre-filter rejects obvious non-medical files instantly.
+ *  3. The backend Gemini Vision AI performs the real image classification.
+ *  4. If the backend is unreachable the scan fails safely — no fake data shown.
+ *  5. Extracted data is NEVER saved until the user explicitly clicks Confirm.
+ *  6. mime type is detected from the file object, not assumed.
+ */
+
+export const ScanPrescriptionModal = ({
+  isOpen,
+  onClose,
+  onAddMedicine,
+  lang = 'EN',
+  translations = {},
+}) => {
   const t = translations[lang] || translations.EN || {};
-  const [imagePreview, setImagePreview] = useState(null);
-  const [imageBase64, setImageBase64] = useState(null);
-  const [scanning, setScanning] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
-  const [error, setError] = useState('');
-  const [adding, setAdding] = useState(false);
-  const [fileName, setFileName] = useState('');
-  const [timeWarning, setTimeWarning] = useState(false);
+
+  /* ── State ──────────────────────────────────────────────────────────── */
+  const [imagePreview, setImagePreview]   = useState(null);
+  const [imageBase64,  setImageBase64]    = useState(null);
+  const [imageMime,    setImageMime]      = useState('image/jpeg');
+  const [scanning,     setScanning]       = useState(false);
+  const [extractedData, setExtractedData] = useState(null); // null until user scans
+  const [confirmed,    setConfirmed]      = useState(false); // true only after user clicks Confirm
+  const [error,        setError]          = useState('');
+  const [adding,       setAdding]         = useState(false);
+  const [fileName,     setFileName]       = useState('');
+  const [timeWarning,  setTimeWarning]    = useState(false);
+
+  const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
-  const normalizeFrequency = (frequency) => {
-    const validFrequencies = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
-    return validFrequencies.includes(frequency) ? frequency : 'DAILY';
+  /* ── Helpers ─────────────────────────────────────────────────────────── */
+
+  const normalizeFrequency = (freq) => {
+    const valid = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
+    return valid.includes(freq) ? freq : 'DAILY';
   };
 
-  const normalizeCategory = (category) => {
-    const validCategories = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Supplement', 'Other'];
-    return validCategories.includes(category) ? category : 'Other';
+  const normalizeCategory = (cat) => {
+    const valid = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Supplement', 'Other'];
+    return valid.includes(cat) ? cat : 'Other';
   };
 
-  // Convert any time string (12h or 24h) to strict HH:mm required by backend.
-  // Returns null if conversion is impossible — caller must handle.
+  // Converts any time string (12-h or 24-h) → strict HH:mm.
+  // Returns null if conversion fails — caller must handle.
   const normalizeScheduledTime = (timeStr) => {
     if (!timeStr || !String(timeStr).trim()) return null;
     const cleaned = String(timeStr).trim().toUpperCase();
-    // Already 24-hour format: HH:mm
     if (/^([01]\d|2[0-3]):[0-5]\d$/.test(cleaned)) return cleaned;
-    // 12-hour with AM/PM
     const match = cleaned.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/);
     if (match) {
-      let hours = parseInt(match[1], 10);
-      const minutes = match[2];
-      const period = match[3];
-      if (period === 'AM') { if (hours === 12) hours = 0; }
-      else { if (hours !== 12) hours += 12; }
-      if (hours < 0 || hours > 23) return null;
-      return `${String(hours).padStart(2, '0')}:${minutes}`;
+      let h = parseInt(match[1], 10);
+      const m = match[2];
+      const p = match[3];
+      if (p === 'AM') { if (h === 12) h = 0; }
+      else            { if (h !== 12) h += 12; }
+      if (h < 0 || h > 23) return null;
+      return `${String(h).padStart(2, '0')}:${m}`;
     }
     return null;
   };
 
-  // Handle Image Upload
+  // Keyword pre-filter — obvious non-medical file names are rejected
+  // immediately without touching the backend.
+  const NON_MEDICAL_KEYWORDS = [
+    'selfie', 'portrait', 'face', 'people', 'person', 'baby', 'kid', 'child',
+    'family', 'wedding', 'birthday', 'party', 'friend',
+    'cat', 'dog', 'bird', 'animal', 'pet', 'puppy', 'kitten',
+    'landscape', 'nature', 'beach', 'mountain', 'sky', 'sunset', 'forest',
+    'food', 'meal', 'dinner', 'lunch', 'coffee', 'drink',
+    'screenshot', 'screen', 'desktop', 'wallpaper', 'capture', 'snapshot',
+    'meme', 'avatar', 'profile', 'logo', 'banner', 'icon',
+    'assignment', 'homework', 'exam', 'test', 'code', 'java', 'python',
+    'diagram', 'chart', 'slide', 'presentation', 'pdf', 'doc',
+    'car', 'bike', 'vehicle', 'road', 'shoe', 'chair', 'desk', 'laptop',
+  ];
+
+  const isNonMedicalFileName = (name) => {
+    const lower = (name || '').toLowerCase();
+    return lower.length > 0 && NON_MEDICAL_KEYWORDS.some((kw) => lower.includes(kw));
+  };
+
+  /* ── Reset everything — called whenever user picks a new file ───────── */
+  const resetScanState = () => {
+    setExtractedData(null);
+    setConfirmed(false);
+    setError('');
+    setTimeWarning(false);
+  };
+
+  /* ── File selection ─────────────────────────────────────────────────── */
   const handleImageChange = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    setError('');
-    setExtractedData(null);
-    setTimeWarning(false);
+
+    // Wipe ALL previous results immediately — requirement 7 & 8
+    resetScanState();
+    setImagePreview(null);
+    setImageBase64(null);
+
     setFileName(file.name || '');
+    setImageMime(file.type || 'image/jpeg');
+
+    // Client-side keyword pre-filter
+    if (isNonMedicalFileName(file.name)) {
+      setError('Invalid Image. Please upload a valid medical prescription or supported medicine label.');
+      // Reset the file input so the same rejected file can be re-detected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
@@ -62,73 +127,66 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
     reader.readAsDataURL(file);
   };
 
-  // Trigger AI Scanner
+  /* ── Trigger AI scan ────────────────────────────────────────────────── */
   const handleStartScan = async () => {
     if (!imageBase64 || scanning) return;
+
+    // Always clear previous results before a new scan
+    resetScanState();
     setScanning(true);
-    setError('');
-    setTimeWarning(false);
-
-    const lowerName = (fileName || '').toLowerCase();
-    const isNonMedical = [
-      'screenshot', 'screen', 'capture', 'snapshot', 'desktop', 'wallpaper',
-      'assignment', 'code', 'java', 'python', 'doc', 'pdf', 'homework',
-      'test', 'exam', 'car', 'desk', 'cat', 'dog', 'chair', 'key', 'laptop',
-      'shoe', 'coffee', 'meme', 'selfie', 'profile', 'avatar', 'logo', 'banner',
-      'diagram', 'chart', 'slide', 'presentation'
-    ].some(term => lowerName.length > 0 && lowerName.includes(term));
-
-    if (isNonMedical) {
-      setExtractedData(null);
-      setError("This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package.");
-      setScanning(false);
-      return;
-    }
 
     try {
-      const res = await scanPrescriptionImageAPI(imageBase64, 'image/jpeg', fileName);
+      const res  = await scanPrescriptionImageAPI(imageBase64, imageMime, fileName);
       const pres = res?.data?.prescription || res?.prescription;
 
+      // ── Validation failed ───────────────────────────────────────────
       if (!pres || pres.isValidPrescription === false) {
-        setExtractedData(null);
-        setError(pres?.rejectionReason || "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package.");
-      } else {
-        const firstMed = pres.medicines?.[0] || {};
-        const rawTime = pres.scheduledTime || firstMed.scheduledTime || '';
-        const normalizedTime = normalizeScheduledTime(rawTime);
-
-        // If AI could not detect time, default to empty string and show a warning
-        const finalTime = normalizedTime || '';
-        const needsTimeConfirmation = !normalizedTime;
-
-        setTimeWarning(needsTimeConfirmation);
-        setExtractedData({
-          name: pres.name || firstMed.name || '',
-          dosage: pres.dosage || firstMed.dosage || '',
-          unit: pres.unit || firstMed.unit || 'mg',
-          category: pres.category || 'Antibiotic',
-          scheduledTime: finalTime,
-          frequency: normalizeFrequency(pres.frequency || firstMed.frequency || 'DAILY'),
-          instructions: pres.instructions || firstMed.instructions || '',
-          confidenceScore: pres.confidenceScore || firstMed.confidence || 0.94,
-          aiModelUsed: pres.aiModelUsed || 'Gemini 2.5 Flash Vision',
-        });
+        setError(
+          pres?.rejectionReason ||
+          'Invalid Image. Please upload a valid medical prescription or supported medicine label.'
+        );
+        return;
       }
+
+      // ── Valid prescription ──────────────────────────────────────────
+      const firstMed       = pres.medicines?.[0] || {};
+      const rawTime        = pres.scheduledTime || firstMed.scheduledTime || '';
+      const normalizedTime = normalizeScheduledTime(rawTime);
+      const needsTime      = !normalizedTime;
+
+      setTimeWarning(needsTime);
+
+      // Store results — user must still click Confirm before anything is saved
+      setExtractedData({
+        name:           pres.name || firstMed.name || '',
+        dosage:         pres.dosage || firstMed.dosage || '',
+        unit:           pres.unit  || firstMed.unit  || 'mg',
+        category:       pres.category || 'Other',
+        scheduledTime:  normalizedTime || '',
+        frequency:      normalizeFrequency(pres.frequency || firstMed.frequency || 'DAILY'),
+        instructions:   pres.instructions || firstMed.instructions || '',
+        confidenceScore: pres.confidenceScore || firstMed.confidence || 0,
+        aiModelUsed:    pres.aiModelUsed || 'Gemini Vision',
+      });
+      setConfirmed(false); // user must explicitly confirm
+
     } catch (err) {
-      setExtractedData(null);
-      setError(err.message || 'The uploaded image could not be verified as a valid medical prescription.');
+      setError(
+        err.message ||
+        'The uploaded image could not be verified as a valid medical prescription.'
+      );
     } finally {
       setScanning(false);
     }
   };
 
-  // Confirm Extracted Prescription & Save Schedule
+  /* ── User confirms extracted data & saves ───────────────────────────── */
   const handleConfirmAdd = async () => {
-    if (!extractedData || adding) return;
+    if (!extractedData || !confirmed || adding) return;
 
-    // Validate scheduled time before saving — MEDICAL SAFETY
+    // Medical safety — time must be set
     if (!extractedData.scheduledTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime)) {
-      setError('Please set a valid scheduled time (HH:MM, 24-hour format) before saving. This is required for your medication alarm to work correctly.');
+      setError('Please set a valid scheduled time (HH:MM, 24-hour) before saving. This is required for your medication alarm.');
       return;
     }
 
@@ -142,12 +200,12 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
 
     try {
       await onAddMedicine({
-        name: extractedData.name.trim(),
-        dosage: Number(extractedData.dosage) || 1,
-        unit: extractedData.unit || 'mg',
-        category: normalizeCategory(extractedData.category),
+        name:         extractedData.name.trim(),
+        dosage:       Number(extractedData.dosage) || 1,
+        unit:         extractedData.unit || 'mg',
+        category:     normalizeCategory(extractedData.category),
         scheduledTime: extractedData.scheduledTime,
-        frequency: normalizeFrequency(extractedData.frequency),
+        frequency:    normalizeFrequency(extractedData.frequency),
         instructions: extractedData.instructions || 'Take as prescribed by your doctor.',
       });
       onClose();
@@ -158,6 +216,7 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
     }
   };
 
+  /* ── Styles ─────────────────────────────────────────────────────────── */
   const inputStyle = {
     width: '100%',
     background: 'rgba(0, 0, 0, 0.3)',
@@ -177,22 +236,19 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
     cursor: 'pointer',
   };
 
+  /* ── Render ─────────────────────────────────────────────────────────── */
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0, 0, 0, 0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-      <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', position: 'relative', border: '1px solid rgba(139, 92, 246, 0.4)' }}>
+    <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+      <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', position: 'relative', border: '1px solid rgba(139,92,246,0.4)' }}>
 
-        {/* Top Back Navigation */}
-        <button
-          onClick={onClose}
-          className="btn-ghost"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-        >
+        {/* Back button */}
+        <button onClick={onClose} className="btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
           {t.backToDashboard || '← Back to Dashboard'}
         </button>
 
-        {/* Modal Header */}
+        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', marginBottom: '1.2rem' }}>
-          <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)', width: '48px', height: '48px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ background: 'linear-gradient(135deg,#8b5cf6,#ec4899)', width: '48px', height: '48px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <IconCamera className="w-6 h-6" color="#ffffff" />
           </div>
           <div>
@@ -200,22 +256,25 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
               {t.scanPrescriptionTitle || 'AI Prescription Vision Scanner'}
             </h3>
             <p style={{ color: '#94a3b8', fontSize: '0.85rem' }}>
-              {t.scanPrescriptionSubtitle || "Upload a doctor's prescription to auto-extract your medicine schedule."}
+              {t.scanPrescriptionSubtitle || "Upload or capture a doctor's prescription image to build your schedule automatically."}
             </p>
           </div>
         </div>
 
+        {/* Error banner */}
         {error && (
-          <div style={{ background: 'rgba(244, 63, 94, 0.15)', border: '1px solid rgba(244, 63, 94, 0.3)', color: '#fb7185', padding: '0.75rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1rem' }}>
-            ⚠️ {error}
+          <div style={{ background: 'rgba(244,63,94,0.15)', border: '1px solid rgba(244,63,94,0.3)', color: '#fb7185', padding: '0.75rem 1rem', borderRadius: '10px', fontSize: '0.85rem', marginBottom: '1rem', display: 'flex', alignItems: 'flex-start', gap: '0.5rem' }}>
+            <span style={{ flexShrink: 0 }}>⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        {/* Upload Box / Image Preview */}
+        {/* ── Upload / Preview panel (always shown until extractedData is set) ── */}
         {!extractedData ? (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
-            <div style={{ border: '2px dashed rgba(139, 92, 246, 0.4)', background: 'rgba(255, 255, 255, 0.02)', borderRadius: '16px', padding: '2rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
 
+            {/* Drop zone */}
+            <div style={{ border: '2px dashed rgba(139,92,246,0.4)', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', padding: '2rem', textAlign: 'center', position: 'relative', overflow: 'hidden' }}>
               {imagePreview ? (
                 <div style={{ position: 'relative', display: 'inline-block', maxWidth: '100%' }}>
                   <img src={imagePreview} alt="Prescription Preview" style={{ maxHeight: '240px', borderRadius: '12px', objectFit: 'contain' }} />
@@ -236,13 +295,20 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
               )}
 
               <input
+                ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleImageChange}
                 style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
               />
             </div>
 
+            {/* Accepted formats hint */}
+            <p style={{ fontSize: '0.75rem', color: '#475569', textAlign: 'center', margin: '-0.5rem 0 0' }}>
+              🔒 Only valid medical prescriptions and medicine labels are accepted. Personal photos and unrelated images are rejected.
+            </p>
+
+            {/* Scan button — only shown once an image is loaded */}
             {imagePreview && (
               <button
                 onClick={handleStartScan}
@@ -257,24 +323,27 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
               </button>
             )}
           </div>
+
         ) : (
-          /* Extracted Results Confirmation Card */
+
+          /* ── Extracted results — user must confirm before saving ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
 
-            {/* Time warning — medical safety */}
+            {/* Time warning */}
             {timeWarning && (
-              <div style={{ background: 'rgba(245, 158, 11, 0.15)', border: '1px solid rgba(245, 158, 11, 0.4)', color: '#fbbf24', padding: '0.9rem 1rem', borderRadius: '12px', fontSize: '0.85rem' }}>
-                ⚠️ <strong>Action Required:</strong> The prescription time could not be read clearly. Please set the correct scheduled time below before saving. Never guess — use the time written on your prescription.
+              <div style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24', padding: '0.9rem 1rem', borderRadius: '12px', fontSize: '0.85rem' }}>
+                ⚠️ <strong>Action Required:</strong> The prescription time could not be read clearly. Please set the correct scheduled time below before saving.
               </div>
             )}
 
-            <div style={{ background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: '16px', padding: '1.4rem' }}>
+            {/* Extracted card */}
+            <div style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)', borderRadius: '16px', padding: '1.4rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
                 <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#34d399', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                   ✓ Prescription Extracted ({extractedData.aiModelUsed})
                 </span>
-                <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.2)', color: '#34d399', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 700 }}>
-                  {((extractedData.confidenceScore || 0.94) * 100).toFixed(0)}% Confidence
+                <span style={{ fontSize: '0.75rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 700 }}>
+                  {((extractedData.confidenceScore || 0) * 100).toFixed(0)}% Confidence
                 </span>
               </div>
 
@@ -316,7 +385,7 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
                   </div>
                 </div>
 
-                {/* Scheduled Time — using type="time" for validation */}
+                {/* Scheduled Time */}
                 <div>
                   <label style={{ fontSize: '0.72rem', color: timeWarning ? '#fbbf24' : '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
                     {timeWarning ? '⚠️ Set Scheduled Time *' : 'Scheduled Time'}
@@ -325,11 +394,8 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
                     type="time"
                     required
                     value={extractedData.scheduledTime}
-                    onChange={(e) => {
-                      setExtractedData({ ...extractedData, scheduledTime: e.target.value });
-                      setTimeWarning(false);
-                    }}
-                    style={{ ...inputStyle, borderColor: timeWarning ? 'rgba(245, 158, 11, 0.6)' : 'rgba(255, 255, 255, 0.1)' }}
+                    onChange={(e) => { setExtractedData({ ...extractedData, scheduledTime: e.target.value }); setTimeWarning(false); }}
+                    style={{ ...inputStyle, borderColor: timeWarning ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.1)' }}
                   />
                 </div>
 
@@ -378,14 +444,28 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
               </div>
             </div>
 
+            {/* ── User confirmation checkbox — REQUIRED before saving ── */}
+            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', background: 'rgba(139,92,246,0.08)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: '12px', padding: '1rem', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={confirmed}
+                onChange={(e) => setConfirmed(e.target.checked)}
+                style={{ width: '18px', height: '18px', marginTop: '2px', accentColor: '#8b5cf6', flexShrink: 0 }}
+              />
+              <span style={{ fontSize: '0.82rem', color: '#cbd5e1', lineHeight: 1.5 }}>
+                <strong style={{ color: '#f8fafc' }}>I confirm</strong> that I have verified the extracted details against my original prescription. I understand this information will be used to set up my medication schedule.
+              </span>
+            </label>
+
             {/* Medical disclaimer */}
             <p style={{ fontSize: '0.78rem', color: '#64748b', textAlign: 'center', lineHeight: 1.5 }}>
-              ⚕️ Please verify all extracted details against your original prescription before saving. Never modify dosages without consulting your doctor.
+              ⚕️ Always verify extracted details against your original prescription. Never modify dosages without consulting your doctor.
             </p>
 
+            {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button
-                onClick={() => { setExtractedData(null); setTimeWarning(false); }}
+                onClick={() => { setExtractedData(null); setConfirmed(false); setTimeWarning(false); setError(''); }}
                 className="btn-ghost"
                 style={{ flex: 1, justifyContent: 'center' }}
               >
@@ -393,9 +473,9 @@ export const ScanPrescriptionModal = ({ isOpen, onClose, onAddMedicine, lang = '
               </button>
               <button
                 onClick={handleConfirmAdd}
-                disabled={adding}
+                disabled={adding || !confirmed}
                 className="btn-primary"
-                style={{ flex: 2, justifyContent: 'center' }}
+                style={{ flex: 2, justifyContent: 'center', opacity: (!confirmed || adding) ? 0.5 : 1, cursor: (!confirmed || adding) ? 'not-allowed' : 'pointer' }}
               >
                 <IconCheckCircle className="w-5 h-5" color="#ffffff" />
                 {adding ? (t.sending || 'Saving...') : (t.confirmAndBuild || 'Confirm & Build Schedule')}

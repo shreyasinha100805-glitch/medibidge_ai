@@ -451,38 +451,42 @@ export const scanPrescriptionImage = async (
   */
 
   const visionPrompt = `
+You are MediBridge Prescription Vision AI — a medical image classifier and data extractor.
 
-You are MediBridge Prescription Vision AI.
+STEP 1 — IMAGE CLASSIFICATION (do this first, before anything else):
 
-Your job is to READ the uploaded image.
+Look at the image carefully and determine what it actually shows.
 
-The image may contain:
+IMMEDIATELY return isValidPrescription=false if the image contains ANY of the following:
+- A human face, selfie, portrait, or body photograph
+- A person or group of people
+- An animal (pet, wildlife, bird, insect, etc.)
+- A landscape, nature scene, sky, or outdoor scenery
+- A food item, drink, or meal
+- A vehicle, furniture, electronic device, or household object
+- A screenshot of a website, app, social media, code editor, or computer desktop
+- A blank, solid-colour, corrupted, or unrecognisable image
+- A chart, diagram, graph, or presentation slide
+- A non-medical document (invoice, receipt, ID card, certificate, homework, etc.)
 
-- Doctor prescription
-- Hospital prescription
-- Medical prescription
-- Medicine label
-- Medicine package
+ONLY proceed to extraction if the image clearly shows ONE of these:
+- A handwritten or printed doctor's prescription
+- A hospital or clinic prescription form
+- A medicine bottle, blister pack, strip, or packaging with a medicine label
+- A pharmacy dispensing label attached to a medicine container
 
-IMPORTANT SAFETY RULES:
+STEP 2 — EXTRACTION RULES (only if image passed Step 1):
 
-1. NEVER invent a medicine name.
-2. NEVER guess a dosage.
-3. NEVER guess a frequency.
-4. NEVER use example medicines.
-5. NEVER return Spondin unless the word Spondin is actually visible.
-6. NEVER return Paracetamol unless Paracetamol is actually visible.
-7. NEVER return Gintac unless Gintac is actually visible.
-8. If text is unclear, say that it is unclear.
-9. Only extract information that is visible.
-10. If the image is not medical, return isValidPrescription=false.
-11. If the medicine name cannot be confidently read, return isValidPrescription=false.
-12. Do not create a schedule from guessed information.
+1. NEVER invent, guess, or assume any medicine name, dosage, frequency, or instruction.
+2. NEVER use example values such as Amoxicillin, Paracetamol, Spondin, or Gintac unless that exact word is visibly printed or handwritten in the image.
+3. Only extract text that is clearly visible and readable.
+4. If the medicine name is blurry, partially visible, or uncertain, return isValidPrescription=false.
+5. If any critical field (name, dosage) cannot be read with confidence >= 0.70, omit that medicine entirely.
+6. Never fabricate patient name, doctor name, or instructions.
 
-Return ONLY valid JSON.
+STEP 3 — RESPONSE FORMAT:
 
-FORMAT:
-
+For a valid prescription or medicine label:
 {
   "isValidPrescription": true,
   "patientName": "",
@@ -496,40 +500,25 @@ FORMAT:
       "scheduledTime": "",
       "duration": "",
       "instructions": "",
-      "confidence": 0
+      "confidence": 0.0
     }
   ]
 }
 
-CONFIDENCE:
-
-Use a number between 0 and 1.
-
-Examples:
-
-0.95 = clearly readable
-
-0.80 = mostly readable
-
-0.60 = uncertain
-
-If medicine name is not readable:
-
+For ANY invalid, non-medical, or unrecognisable image:
 {
   "isValidPrescription": false,
   "medicines": [],
-  "rejectionReason": "Medicine name could not be read confidently."
+  "rejectionReason": "Invalid Image. Please upload a valid medical prescription or supported medicine label."
 }
 
-If the image is not a prescription:
+CONFIDENCE scale:
+0.95 = text is clearly and fully readable
+0.80 = mostly readable, minor uncertainty
+0.70 = minimum threshold — below this, exclude the medicine
+below 0.70 = do NOT include in medicines array
 
-{
-  "isValidPrescription": false,
-  "medicines": [],
-  "rejectionReason": "The uploaded image does not appear to contain a medical prescription or medicine label."
-}
-
-Return JSON only.
+Return ONLY valid JSON. No explanations, no markdown, no extra text.
 `;
 
 
@@ -955,57 +944,19 @@ Return JSON only.
 
   /*
   |--------------------------------------------------------------------------
-  | NO API KEY / DEMO FALLBACK
+  | NO API KEY — REJECT SAFELY
   |--------------------------------------------------------------------------
+  |
+  | When no Gemini API key is configured the backend CANNOT analyse the
+  | image content. Returning invented medicine data would be dangerous, so
+  | we reject with a clear message instead of fabricating a prescription.
+  |
   */
 
-  const lowerName = (fileName || '').toLowerCase();
-  const isNonMedical = [
-    'screenshot', 'screen', 'capture', 'snapshot', 'desktop', 'wallpaper',
-    'assignment', 'code', 'java', 'python', 'doc', 'pdf', 'homework',
-    'test', 'exam', 'car', 'desk', 'cat', 'dog', 'chair', 'key', 'laptop',
-    'shoe', 'coffee', 'meme', 'selfie', 'profile', 'avatar', 'logo', 'banner',
-    'diagram', 'chart', 'slide', 'presentation'
-  ].some(term => lowerName.length > 0 && lowerName.includes(term));
-
-  if (isNonMedical) {
-    return {
-      isValidPrescription: false,
-      medicines: [],
-      rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package."
-    };
-  }
-
-  const cleanName = fileName ? fileName.replace(/\.[^/.]+$/, '').replace(/[-_]/g, ' ') : '';
-  const isGenericName = !fileName || /^(img|photo|image|dsc|file|upload|capture|screen)/i.test(cleanName.replace(/\s+/g, ''));
-  const extractedMedName = isGenericName
-    ? 'Amoxicillin 500mg'
-    : (cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
-
   return {
-    isValidPrescription: true,
-    patientName: 'Amal Perera',
-    doctorName: 'Dr. S. K. Sharma, MD',
-    medicines: [
-      {
-        name: extractedMedName,
-        dosage: '500',
-        unit: 'mg',
-        frequency: 'DAILY',
-        scheduledTime: '08:00 AM',
-        duration: '7 Days',
-        instructions: 'Take 1 capsule after breakfast with water.',
-        confidence: 0.94,
-      }
-    ],
-    name: extractedMedName,
-    dosage: '500',
-    unit: 'mg',
-    category: 'Antibiotic',
-    scheduledTime: '08:00 AM',
-    frequency: 'DAILY',
-    instructions: 'Take 1 capsule after breakfast with water.',
-    confidenceScore: 0.94,
-    aiModelUsed: 'MediBridge AI Vision (Smart Offline Engine)',
+    isValidPrescription: false,
+    medicines: [],
+    rejectionReason:
+      'The AI vision service is not configured. Please contact the administrator to enable prescription scanning.'
   };
 };

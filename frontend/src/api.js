@@ -656,62 +656,15 @@ export const scanPrescriptionImageAPI = async (
             );
         }
 
-        console.warn("Backend prescription vision scanner fallback:", err.message);
-        
-        const lowerName = (fileName || "").toLowerCase();
-        
-        // Strict classification for non-medical files (screenshots, assignments, code, doc files, unrelated objects)
-        const isNonMedical = [
-            "screenshot", "screen", "capture", "snapshot", "desktop", "wallpaper",
-            "assignment", "code", "java", "python", "doc", "pdf", "homework", 
-            "test", "exam", "car", "desk", "cat", "dog", "chair", "key", "laptop", 
-            "shoe", "coffee", "meme", "selfie", "profile", "avatar", "logo", "banner",
-            "diagram", "chart", "slide", "presentation"
-        ].some(term => lowerName.length > 0 && lowerName.includes(term));
-
-        if (isNonMedical) {
-            return {
-                success: true,
-                data: {
-                    prescription: {
-                        isValidPrescription: false,
-                        rejectionReason: "This image does not appear to contain a prescription or medicine. Please scan a clear doctor's prescription note, pill bottle, or medicine package."
-                    }
-                }
-            };
-        }
-
-        const cleanName = fileName ? fileName.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ") : "";
-        const isGenericName = !fileName || /^(img|photo|image|dsc|file|upload|capture|screen)/i.test(cleanName.replace(/\s+/g, ''));
-        const extractedMedName = isGenericName
-            ? "Amoxicillin 500mg"
-            : (cleanName.charAt(0).toUpperCase() + cleanName.slice(1));
-
+        // Backend is unreachable — cannot analyse image content without AI.
+        // NEVER return invented medicine data. Reject safely with a clear message.
+        console.warn("Backend prescription scanner unavailable:", err.message);
         return {
             success: true,
             data: {
                 prescription: {
-                    isValidPrescription: true,
-                    aiModelUsed: "Gemini 2.5 Flash Vision (Medical Scanner)",
-                    confidenceScore: 0.94,
-                    name: extractedMedName,
-                    dosage: "500",
-                    unit: "mg",
-                    scheduledTime: "09:00 AM",
-                    category: "Antibiotic",
-                    frequency: "DAILY",
-                    instructions: "Take 1 capsule twice daily after meals with a full glass of water.",
-                    medicines: [
-                        {
-                            name: extractedMedName,
-                            dosage: "500",
-                            unit: "mg",
-                            scheduledTime: "09:00 AM",
-                            frequency: "DAILY",
-                            instructions: "Take 1 capsule twice daily after meals.",
-                            confidence: 0.94
-                        }
-                    ]
+                    isValidPrescription: false,
+                    rejectionReason: "Unable to reach the AI scanning service. Please check your connection and try again."
                 }
             }
         };
