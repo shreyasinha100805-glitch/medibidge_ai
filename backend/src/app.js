@@ -20,6 +20,7 @@ const app = express();
 app.set('trust proxy', 1);
 
 const allowedOrigins = [
+  'https://medibidge-ai.vercel.app',
   process.env.CLIENT_URL,
   ...(process.env.ALLOWED_ORIGINS || '').split(','),
 ]

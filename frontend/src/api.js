@@ -1,10 +1,7 @@
 // frontend/src/api.js
+import { resolveApiBaseUrl } from './apiBaseUrl';
 
-const API_BASE_URL =
-    import.meta.env.VITE_API_URL ||
-    (import.meta.env.PROD
-        ? "https://medibridge-backend-nq9w.onrender.com/api"
-        : "/api");
+const API_BASE_URL = resolveApiBaseUrl(import.meta.env.VITE_API_URL, import.meta.env.PROD);
 
 const API_TIMEOUT_MS =
     Number(import.meta.env.VITE_API_TIMEOUT_MS) ||
