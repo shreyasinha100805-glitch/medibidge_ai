@@ -1,4 +1,9 @@
 import MedicationLog from '../models/MedicationLog.js';
+import {
+  addCalendarDays,
+  getCalendarDateKey,
+  getRollingDateRange,
+} from '../utils/timeZone.js';
 
 /**
  * Calculate adherence percentage for a patient over a date range.
@@ -33,29 +38,18 @@ export async function calculateAdherence(patientId, startDate, endDate) {
   };
 }
 
-export async function getTodayAdherence(patientId) {
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
+export async function getTodayAdherence(patientId, timeZone = 'UTC') {
+  const { start, end } = getRollingDateRange(new Date(), 1, timeZone);
   return calculateAdherence(patientId, start, end);
 }
 
-export async function getWeekAdherence(patientId) {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - 6);
-  start.setHours(0, 0, 0, 0);
+export async function getWeekAdherence(patientId, timeZone = 'UTC') {
+  const { start, end } = getRollingDateRange(new Date(), 7, timeZone);
   return calculateAdherence(patientId, start, end);
 }
 
-export async function getMonthAdherence(patientId) {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - 29);
-  start.setHours(0, 0, 0, 0);
+export async function getMonthAdherence(patientId, timeZone = 'UTC') {
+  const { start, end } = getRollingDateRange(new Date(), 30, timeZone);
   return calculateAdherence(patientId, start, end);
 }
 
@@ -93,21 +87,17 @@ export async function getMedicineWiseAdherence(patientId, startDate, endDate) {
   });
 }
 
-export async function getDailyAdherenceTrend(patientId, days = 7) {
-  const end = new Date();
-  end.setHours(23, 59, 59, 999);
-  const start = new Date();
-  start.setDate(start.getDate() - (days - 1));
-  start.setHours(0, 0, 0, 0);
+export async function getDailyAdherenceTrend(patientId, days = 7, timeZone = 'UTC') {
+  const { startDateKey, start, endExclusive } = getRollingDateRange(new Date(), days, timeZone);
 
   const logs = await MedicationLog.find({
     patientId,
-    scheduledTime: { $gte: start, $lte: end },
+    scheduledTime: { $gte: start, $lt: endExclusive },
   });
 
   const byDay = {};
   for (const log of logs) {
-    const dayKey = log.scheduledTime.toISOString().slice(0, 10);
+    const dayKey = getCalendarDateKey(log.scheduledTime, timeZone);
     if (!byDay[dayKey]) byDay[dayKey] = { taken: 0, missed: 0, pending: 0 };
     if (log.status === 'TAKEN') byDay[dayKey].taken++;
     if (log.status === 'MISSED') byDay[dayKey].missed++;
@@ -116,9 +106,7 @@ export async function getDailyAdherenceTrend(patientId, days = 7) {
 
   const result = [];
   for (let i = days - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const dayKey = d.toISOString().slice(0, 10);
+    const dayKey = addCalendarDays(startDateKey, i);
     const counts = byDay[dayKey] || { taken: 0, missed: 0, pending: 0 };
     const completed = counts.taken + counts.missed;
     result.push({

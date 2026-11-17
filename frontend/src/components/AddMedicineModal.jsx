@@ -1,16 +1,43 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { IconXCircle, IconPill } from './Icons';
 
-export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
+const getLocalDateInput = (value = new Date()) => {
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.valueOf())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
+export const AddMedicineModal = ({ isOpen, onClose, onAdd, initialMedicine = null }) => {
   const [name, setName] = useState('');
-  const [dosage, setDosage] = useState(1);
-  const [unit, setUnit] = useState('tablet');
-  const [category, setCategory] = useState('Chronic');
-  const [scheduledTime, setScheduledTime] = useState('08:00');
-  const [frequency, setFrequency] = useState('DAILY');
+  const [activeIngredient, setActiveIngredient] = useState('');
+  const [dosage, setDosage] = useState('');
+  const [unit, setUnit] = useState('');
+  const [category, setCategory] = useState('Other');
+  const [scheduledTime, setScheduledTime] = useState('');
+  const [frequency, setFrequency] = useState('');
+  const [duration, setDuration] = useState('');
+  const [startDate, setStartDate] = useState(getLocalDateInput());
+  const [endDate, setEndDate] = useState('');
   const [instructions, setInstructions] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setName(initialMedicine?.name || '');
+    setActiveIngredient(initialMedicine?.activeIngredient || '');
+    setDosage(initialMedicine?.dosage === undefined ? '' : String(initialMedicine.dosage));
+    setUnit(initialMedicine?.unit || '');
+    setCategory(initialMedicine?.category || 'Other');
+    setScheduledTime(initialMedicine?.scheduledTime || '');
+    setFrequency(initialMedicine?.frequency || '');
+    setDuration(initialMedicine?.duration || '');
+    setStartDate(getLocalDateInput(initialMedicine?.startDate || new Date()));
+    setEndDate(getLocalDateInput(initialMedicine?.endDate));
+    setInstructions(initialMedicine?.instructions || '');
+    setError('');
+  }, [isOpen, initialMedicine]);
 
   if (!isOpen) return null;
 
@@ -18,9 +45,28 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
     e.preventDefault();
     setError('');
 
-    // Frontend validation matching backend TIME_REGEX
-    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+    if (!Number.isFinite(Number(dosage)) || Number(dosage) <= 0) {
+      setError('Enter the dosage amount shown on your prescription.');
+      return;
+    }
+    if (!unit) {
+      setError('Select the dosage unit shown on your prescription.');
+      return;
+    }
+    if (!frequency) {
+      setError('Select the frequency shown on your prescription.');
+      return;
+    }
+    if (frequency !== 'AS_NEEDED' && !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
       setError('Please enter a valid time in HH:MM format (e.g. 08:00, 20:30).');
+      return;
+    }
+    if (frequency === 'AS_NEEDED' && scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(scheduledTime)) {
+      setError('Please enter a valid time in HH:MM format or leave it blank for as-needed medicine.');
+      return;
+    }
+    if (!startDate || (endDate && endDate < startDate)) {
+      setError('Choose a valid start date and an end date on or after it.');
       return;
     }
 
@@ -28,16 +74,20 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
     try {
       await onAdd({
         name: name.trim(),
+        activeIngredient: activeIngredient.trim(),
         dosage: Number(dosage),
         unit,
         category,
-        scheduledTime,
+        ...(frequency !== 'AS_NEEDED' || scheduledTime ? { scheduledTime } : {}),
         frequency,
+        duration: duration.trim(),
+        startDate,
+        endDate: endDate || null,
         instructions: instructions.trim(),
       });
       // Reset form on success
-      setName(''); setDosage(1); setUnit('tablet'); setCategory('Chronic');
-      setScheduledTime('08:00'); setFrequency('DAILY'); setInstructions('');
+      setName(''); setDosage(''); setUnit(''); setCategory('Other');
+      setScheduledTime(''); setFrequency(''); setInstructions('');
       onClose();
     } catch (err) {
       setError(err.message || 'Failed to add medication. Please try again.');
@@ -93,8 +143,8 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
             <IconPill className="w-5 h-5" color="#ffffff" />
           </div>
           <div>
-            <h3 style={{ fontSize: '1.4rem', fontWeight: 800 }}>Add New Prescription</h3>
-            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.1rem' }}>Enter medication details from your doctor's prescription</p>
+            <h3 style={{ fontSize: '1.4rem', fontWeight: 800 }}>{initialMedicine ? 'Edit Prescription' : 'Add New Prescription'}</h3>
+            <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.1rem' }}>Enter medication details exactly as shown on your prescription</p>
           </div>
         </div>
 
@@ -114,7 +164,19 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g. Metformin, Paracetamol, Lisinopril"
+              placeholder="Medicine name from your prescription"
+              style={inputStyle}
+            />
+          </div>
+
+          <div>
+            <label style={labelStyle}>Active Ingredient (if known)</label>
+            <input
+              type="text"
+              maxLength={100}
+              value={activeIngredient}
+              onChange={(e) => setActiveIngredient(e.target.value)}
+              placeholder="Only if shown on the prescription or package"
               style={inputStyle}
             />
           </div>
@@ -135,7 +197,8 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
             </div>
             <div>
               <label style={labelStyle}>Unit *</label>
-              <select value={unit} onChange={(e) => setUnit(e.target.value)} style={selectStyle}>
+              <select required value={unit} onChange={(e) => setUnit(e.target.value)} style={selectStyle}>
+                <option value="">Select unit</option>
                 <option value="tablet">tablet</option>
                 <option value="mg">mg</option>
                 <option value="ml">ml</option>
@@ -143,6 +206,29 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
                 <option value="drop">drop</option>
                 <option value="unit">unit</option>
               </select>
+            </div>
+          </div>
+
+          <div>
+            <label style={labelStyle}>Duration (as written, if stated)</label>
+            <input
+              type="text"
+              maxLength={100}
+              value={duration}
+              onChange={(e) => setDuration(e.target.value)}
+              placeholder="For example, 7 days"
+              style={inputStyle}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.8rem' }}>
+            <div>
+              <label style={labelStyle}>Schedule Start Date *</label>
+              <input type="date" required value={startDate} onChange={(e) => setStartDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+            </div>
+            <div>
+              <label style={labelStyle}>Schedule End Date (optional)</label>
+              <input type="date" value={endDate} min={startDate || undefined} onChange={(e) => setEndDate(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
             </div>
           </div>
 
@@ -161,7 +247,12 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
             </div>
             <div>
               <label style={labelStyle}>Frequency *</label>
-              <select value={frequency} onChange={(e) => setFrequency(e.target.value)} style={selectStyle}>
+              <select required value={frequency} onChange={(e) => {
+                const nextFrequency = e.target.value;
+                setFrequency(nextFrequency);
+                if (nextFrequency === 'AS_NEEDED') setScheduledTime('');
+              }} style={selectStyle}>
+                <option value="">Select frequency</option>
                 <option value="DAILY">Daily</option>
                 <option value="ALTERNATE_DAYS">Alternate Days</option>
                 <option value="WEEKLY">Weekly</option>
@@ -171,19 +262,23 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
           </div>
 
           {/* Scheduled Time */}
-          <div>
-            <label style={labelStyle}>Scheduled Time (24-hour format) *</label>
-            <input
-              type="time"
-              required
-              value={scheduledTime}
-              onChange={(e) => setScheduledTime(e.target.value)}
-              style={{ ...inputStyle, colorScheme: 'dark' }}
-            />
-            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>
-              Select the time you take this medicine daily
-            </p>
-          </div>
+          {frequency === 'AS_NEEDED' ? (
+            <div>
+              <label style={labelStyle}>Scheduled Time (optional)</label>
+              <input type="time" value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>
+                As-needed medicines are not added to automatic reminders.
+              </p>
+            </div>
+          ) : (
+            <div>
+              <label style={labelStyle}>Scheduled Time (24-hour format) *</label>
+              <input type="time" required value={scheduledTime} onChange={(e) => setScheduledTime(e.target.value)} style={{ ...inputStyle, colorScheme: 'dark' }} />
+              <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.3rem' }}>
+                Enter the time shown on your prescription.
+              </p>
+            </div>
+          )}
 
           {/* Instructions */}
           <div>
@@ -192,7 +287,7 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
               type="text"
               value={instructions}
               onChange={(e) => setInstructions(e.target.value)}
-              placeholder="e.g. Take after dinner with water, avoid dairy"
+              placeholder="Optional instructions from your prescription"
               style={inputStyle}
             />
           </div>
@@ -203,7 +298,7 @@ export const AddMedicineModal = ({ isOpen, onClose, onAdd }) => {
               ← Cancel
             </button>
             <button type="submit" className="glow-btn" disabled={loading} style={{ flex: 2, justifyContent: 'center' }}>
-              {loading ? 'Adding...' : '+ Add Prescription'}
+              {loading ? 'Saving...' : initialMedicine ? 'Save Changes' : '+ Add Prescription'}
             </button>
           </div>
         </form>

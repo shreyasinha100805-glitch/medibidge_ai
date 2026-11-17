@@ -1,9 +1,11 @@
 import Medicine from '../models/Medicine.js';
 import MedicationLog from '../models/MedicationLog.js';
+import ApiError from '../utils/ApiError.js';
 import {
   getMonthAdherence,
   getMedicineWiseAdherence
 } from './adherenceService.js';
+import { getRollingDateRange } from '../utils/timeZone.js';
 
 /*
 |--------------------------------------------------------------------------
@@ -12,10 +14,30 @@ import {
 */
 
 const GEMINI_MODEL =
-  process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 const GEMINI_API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+
+const isConfiguredAIKey = (value) => {
+  const apiKey = typeof value === 'string' ? value.trim() : '';
+  return Boolean(apiKey) && !/^(?:your(?:[_ -].*)?|replace(?:[_ -].*)?|<[^>]+>)$/i.test(apiKey);
+};
+
+const geminiApiError = (response, operation) => {
+  // Log only the response status and operation; never log credentials or request bodies.
+  console.error(`Gemini ${operation} request failed with HTTP ${response.status}.`);
+  if (response.status === 429) {
+    return new ApiError(503, 'The AI service is busy or rate limited. Please try again later.');
+  }
+  if (response.status === 401 || response.status === 403) {
+    return new ApiError(503, 'Gemini rejected the configured API key or its permissions. Check the backend AI_API_KEY settings.');
+  }
+  if (response.status === 404) {
+    return new ApiError(503, `The configured Gemini model (${GEMINI_MODEL}) is unavailable or not enabled for this API key. Check GEMINI_MODEL and model access.`);
+  }
+  return new ApiError(502, 'The AI service could not complete this request. Please try again later.');
+};
 
 
 /*
@@ -24,7 +46,9 @@ const GEMINI_API_URL =
 |--------------------------------------------------------------------------
 */
 
-export const buildPatientAIContext = async (patientId) => {
+export const buildPatientAIContext = async (patientId, timeZone = 'UTC') => {
+
+  const monthRange = getRollingDateRange(new Date(), 30, timeZone);
 
   const [
     medicines,
@@ -41,12 +65,12 @@ export const buildPatientAIContext = async (patientId) => {
         'name dosage unit category scheduledTime instructions frequency'
       ),
 
-    getMonthAdherence(patientId),
+    getMonthAdherence(patientId, timeZone),
 
     getMedicineWiseAdherence(
       patientId,
-      new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      new Date()
+      monthRange.start,
+      monthRange.end
     )
 
   ]);
@@ -111,7 +135,8 @@ export const buildPatientAIContext = async (patientId) => {
               l.scheduledTime
             ).toLocaleTimeString([], {
               hour: '2-digit',
-              minute: '2-digit'
+              minute: '2-digit',
+              timeZone,
             })} status: ${l.status}`
         )
 
@@ -137,9 +162,9 @@ export const generateAIResponse = async (
 
   const apiKey = process.env.AI_API_KEY;
 
-  const isDemoKey =
-    !apiKey ||
-    apiKey === 'your_ai_api_key';
+  if (!isConfiguredAIKey(apiKey)) {
+    throw new ApiError(503, 'The AI assistant is not configured. Please try again later.');
+  }
 
   const systemInstructions = `
 You are MediBridge AI.
@@ -176,87 +201,45 @@ SAFETY RULES:
 6. Clearly tell the user to consult a doctor for medical decisions.
 `;
 
-  if (!isDemoKey) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30000);
 
-    try {
+  try {
+    const response = await fetch(GEMINI_API_URL, {
+      method: 'POST',
+      signal: controller.signal,
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
+      body: JSON.stringify({
+        contents: [{
+          role: 'user',
+          parts: [{ text: `${systemInstructions}\n\nUSER QUESTION:\n${question}` }],
+        }],
+        generationConfig: { temperature: 0.4, maxOutputTokens: 700 },
+      }),
+    });
 
-      const response = await fetch(
-        `${GEMINI_API_URL}?key=${apiKey}`,
-        {
-          method: 'POST',
-
-          headers: {
-            'Content-Type': 'application/json'
-          },
-
-          body: JSON.stringify({
-
-            contents: [
-              {
-                role: 'user',
-
-                parts: [
-                  {
-                    text:
-                      systemInstructions +
-                      '\n\nUSER QUESTION:\n' +
-                      question
-                  }
-                ]
-              }
-            ],
-
-            generationConfig: {
-              temperature: 0.4,
-              maxOutputTokens: 700
-            }
-
-          })
-        }
-      );
-
-      if (response.ok) {
-
-        const data =
-          await response.json();
-
-        const text =
-          data?.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (text) {
-
-          return text;
-
-        }
-
-      } else {
-
-        const errorText =
-          await response.text();
-
-        console.error(
-          'Gemini AI error:',
-          response.status,
-          errorText
-        );
-
-      }
-
-    } catch (error) {
-
-      console.error(
-        'Gemini AI request failed:',
-        error.message
-      );
-
+    if (!response.ok) {
+      throw geminiApiError(response, 'assistant');
     }
 
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+    if (typeof text !== 'string' || !text.trim()) {
+      throw new ApiError(502, 'The AI service returned an empty response. Please try again.');
+    }
+    return text.trim();
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error.name === 'AbortError' || error.name === 'TimeoutError') {
+      throw new ApiError(504, 'The AI service took too long to respond. Please try again.');
+    }
+    throw new ApiError(502, 'The AI service is temporarily unavailable. Please try again later.');
+  } finally {
+    clearTimeout(timeout);
   }
-
-  return buildSmartFallbackResponse(
-    question,
-    patientContext
-  );
 
 };
 
@@ -301,78 +284,6 @@ MediBridge AI can support reminders and adherence, but urgent symptoms need real
 
 /*
 |--------------------------------------------------------------------------
-| FALLBACK AI RESPONSE
-|--------------------------------------------------------------------------
-*/
-
-function buildSmartFallbackResponse(
-  question,
-  context
-) {
-
-  const q =
-    question.toLowerCase();
-
-  let body = '';
-
-  if (
-    q.includes('why') ||
-    q.includes('miss') ||
-    q.includes('drop') ||
-    q.includes('low')
-  ) {
-
-    body =
-      `Your current 30-day medication adherence is **${context.adherenceMonthPercent}%**.\n\n` +
-
-      `The medicine with the lowest adherence is **${context.lowestAdherenceMed}**.\n\n` +
-
-      `### Suggestions\n` +
-
-      `• Set an alarm before the scheduled medicine time.\n` +
-      `• Keep medicines in a visible and safe location.\n` +
-      `• Connect a caretaker for additional monitoring.\n` +
-      `• Mark medicines as taken immediately after taking them.`;
-
-  } else if (
-    q.includes('which') ||
-    q.includes('summary') ||
-    q.includes('stat')
-  ) {
-
-    body =
-      `### Medication Summary\n\n` +
-
-      `• Active medicines: ${context.medicinesCount}\n` +
-      `• 30-day adherence: ${context.adherenceMonthPercent}%\n` +
-      `• Taken doses: ${context.totalTaken}\n` +
-      `• Missed doses: ${context.totalMissed}\n\n` +
-
-      `### Medicine Performance\n` +
-
-      context.medicineBreakdown.join('\n');
-
-  } else {
-
-    body =
-      `You currently have **${context.medicinesCount} active medicine(s)**.\n\n` +
-
-      `Your 30-day adherence is **${context.adherenceMonthPercent}%**.\n\n` +
-
-      `I can help you understand your medication schedule and improve adherence.`;
-
-  }
-
-  return (
-    body +
-    `\n\n*Disclaimer: MediBridge AI provides adherence and reminder support. It does not replace medical diagnosis or professional medical advice.*`
-  );
-
-}
-
-
-/*
-|--------------------------------------------------------------------------
 | PRESCRIPTION VISION SCANNER
 |--------------------------------------------------------------------------
 |
@@ -383,7 +294,7 @@ function buildSmartFallbackResponse(
 
 export const scanPrescriptionImage = async (
   imageBase64,
-  mimeType = 'image/jpeg',
+  mimeType,
   fileName = ''
 ) => {
 
@@ -400,6 +311,13 @@ export const scanPrescriptionImage = async (
 
   }
 
+  if (typeof imageBase64 !== 'string') {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The uploaded image data is invalid.',
+    };
+  }
+
 
   /*
   |--------------------------------------------------------------------------
@@ -414,7 +332,23 @@ export const scanPrescriptionImage = async (
     'image/webp'
   ];
 
-  if (!allowedMimeTypes.includes(mimeType)) {
+  const dataUriMatch = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
+  const cleanBase64 = dataUriMatch ? dataUriMatch[2] : imageBase64;
+  const dataUriMime = dataUriMatch?.[1]?.toLowerCase() || '';
+  const declaredMime = typeof mimeType === 'string' ? mimeType.trim().toLowerCase() : '';
+  const submittedMime = dataUriMime || declaredMime || 'image/jpeg';
+  const normalizedMime = submittedMime === 'image/jpg' ? 'image/jpeg' : submittedMime;
+  const maxImageBytes = 7 * 1024 * 1024;
+  const maxBase64Length = Math.ceil(maxImageBytes / 3) * 4;
+
+  if (cleanBase64.length > maxBase64Length) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The image is too large. Please upload an image under 7 MB.',
+    };
+  }
+
+  if (!allowedMimeTypes.includes(submittedMime) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(cleanBase64)) {
 
     return {
       isValidPrescription: false,
@@ -424,6 +358,15 @@ export const scanPrescriptionImage = async (
 
   }
 
+  const normalizedDeclaredMime = declaredMime === 'image/jpg' ? 'image/jpeg' : declaredMime;
+  const normalizedDataUriMime = dataUriMime === 'image/jpg' ? 'image/jpeg' : dataUriMime;
+  if (normalizedDataUriMime && normalizedDeclaredMime && normalizedDataUriMime !== normalizedDeclaredMime) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The declared image type does not match the uploaded image data.',
+    };
+  }
+
 
   /*
   |--------------------------------------------------------------------------
@@ -431,16 +374,31 @@ export const scanPrescriptionImage = async (
   |--------------------------------------------------------------------------
   */
 
-  let cleanBase64 =
-    imageBase64;
+  const imageBuffer = Buffer.from(cleanBase64, 'base64');
+  if (imageBuffer.length > maxImageBytes) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The image is too large. Please upload an image under 7 MB.',
+    };
+  }
 
-  if (
-    imageBase64.includes(';base64,')
-  ) {
+  const detectedMime = imageBuffer[0] === 0xff && imageBuffer[1] === 0xd8 && imageBuffer[2] === 0xff
+    ? 'image/jpeg'
+    : imageBuffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+      ? 'image/png'
+      : imageBuffer.toString('ascii', 0, 4) === 'RIFF' && imageBuffer.toString('ascii', 8, 12) === 'WEBP'
+        ? 'image/webp'
+        : null;
 
-    cleanBase64 =
-      imageBase64.split(';base64,')[1];
+  if (!detectedMime || detectedMime !== normalizedMime) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The file contents do not match a supported JPG, PNG, or WEBP image.',
+    };
+  }
 
+  if (!isConfiguredAIKey(apiKey)) {
+    throw new ApiError(503, 'Prescription scanning is disabled because the backend AI_API_KEY is not configured.');
   }
 
 
@@ -477,12 +435,14 @@ ONLY proceed to extraction if the image clearly shows ONE of these:
 
 STEP 2 — EXTRACTION RULES (only if image passed Step 1):
 
-1. NEVER invent, guess, or assume any medicine name, dosage, frequency, or instruction.
+1. NEVER invent, guess, or assume any medicine name, active ingredient, dosage, frequency, duration, or instruction.
 2. NEVER use example values such as Amoxicillin, Paracetamol, Spondin, or Gintac unless that exact word is visibly printed or handwritten in the image.
 3. Only extract text that is clearly visible and readable.
 4. If the medicine name is blurry, partially visible, or uncertain, return isValidPrescription=false.
 5. If any critical field (name, dosage) cannot be read with confidence >= 0.70, omit that medicine entirely.
 6. Never fabricate patient name, doctor name, or instructions.
+7. Include an active ingredient only when it is clearly printed; otherwise return an empty string.
+8. Return dosage as a positive numeric amount only, and put its printed unit in the unit field. If the dosage amount is unclear, omit that medicine.
 
 STEP 3 — RESPONSE FORMAT:
 
@@ -494,6 +454,7 @@ For a valid prescription or medicine label:
   "medicines": [
     {
       "name": "",
+      "activeIngredient": "",
       "dosage": "",
       "unit": "",
       "frequency": "",
@@ -528,33 +489,22 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
   |--------------------------------------------------------------------------
   */
 
-  if (
-    apiKey &&
-    apiKey !== 'your_ai_api_key'
-  ) {
+  if (isConfiguredAIKey(apiKey)) {
+    const geminiController = new AbortController();
+    const geminiTimeout = setTimeout(() => geminiController.abort(), 60000);
 
     try {
 
-      // 60-second timeout for the Gemini Vision API call.
-      // Without this, a slow/hanging Gemini response causes the
-      // frontend AbortController to fire first, surfacing the cryptic
-      // "signal is aborted without reason" error to the user.
-      const geminiController = new AbortController();
-      const geminiTimeout = setTimeout(
-        () => geminiController.abort(),
-        60000
-      );
-
       const response =
         await fetch(
-          `${GEMINI_API_URL}?key=${apiKey}`,
+          GEMINI_API_URL,
           {
             method: 'POST',
             signal: geminiController.signal,
 
             headers: {
-              'Content-Type':
-                'application/json'
+              'Content-Type': 'application/json',
+              'x-goog-api-key': apiKey,
             },
 
             body: JSON.stringify({
@@ -567,7 +517,7 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
 
                     {
                       inlineData: {
-                        mimeType,
+                        mimeType: normalizedMime,
                         data: cleanBase64
                       }
                     },
@@ -598,9 +548,6 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
           }
         );
 
-      clearTimeout(geminiTimeout);
-
-
       /*
       |--------------------------------------------------------------------------
       | GEMINI ERROR
@@ -608,23 +555,7 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       */
 
       if (!response.ok) {
-
-        const errorText =
-          await response.text();
-
-        console.error(
-          'Gemini Vision API Error:',
-          response.status,
-          errorText
-        );
-
-        return {
-          isValidPrescription: false,
-
-          rejectionReason:
-            'The AI vision service could not analyze this image. Please try again with a clear prescription image.'
-        };
-
+        throw geminiApiError(response, 'vision');
       }
 
 
@@ -634,13 +565,17 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       |--------------------------------------------------------------------------
       */
 
-      const data =
-        await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new ApiError(502, 'Gemini returned an invalid response. Please retry scanning.');
+      }
 
-      const text =
-        data?.candidates?.[0]
-          ?.content?.parts?.[0]
-          ?.text;
+      const responseParts = data?.candidates?.[0]?.content?.parts;
+      const text = Array.isArray(responseParts)
+        ? responseParts.map((part) => typeof part?.text === 'string' ? part.text : '').join('').trim()
+        : '';
 
 
       if (!text) {
@@ -662,33 +597,20 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       */
 
       let parsed;
-
       try {
-
-        parsed =
-          JSON.parse(text);
-
-      } catch (error) {
-
-        const jsonMatch =
-          text.match(/\{[\s\S]*\}/);
-
-        if (!jsonMatch) {
-
-          return {
-            isValidPrescription: false,
-
-            rejectionReason:
-              'The AI returned an unreadable result. Please upload a clearer image.'
-          };
-
+        parsed = JSON.parse(text);
+      } catch {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        try {
+          if (!jsonMatch) throw new Error('No JSON object found.');
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          throw new ApiError(502, 'Gemini returned an invalid structured response. Please retry scanning.');
         }
+      }
 
-        parsed =
-          JSON.parse(
-            jsonMatch[0]
-          );
-
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new ApiError(502, 'Gemini returned an invalid structured response. Please retry scanning.');
       }
 
 
@@ -698,9 +620,7 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       |--------------------------------------------------------------------------
       */
 
-      if (
-        parsed.isValidPrescription === false
-      ) {
+      if (parsed.isValidPrescription !== true) {
 
         return {
 
@@ -769,9 +689,12 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
               Number(
                 medicine.confidence || 0
               );
+            const dosage = Number(medicine.dosage);
 
             return (
               name.length > 1 &&
+              Number.isFinite(dosage) &&
+              dosage > 0 &&
               confidence >= 0.70
             );
 
@@ -781,6 +704,11 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
             name:
               String(
                 medicine.name
+              ).trim(),
+
+            activeIngredient:
+              String(
+                medicine.activeIngredient || ''
               ).trim(),
 
             dosage:
@@ -874,6 +802,9 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
         name:
           validMedicines[0].name,
 
+        activeIngredient:
+          validMedicines[0].activeIngredient,
+
         dosage:
           validMedicines[0].dosage,
 
@@ -890,9 +821,12 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
           validMedicines[0].frequency ||
           '',
 
+        duration:
+          validMedicines[0].duration ||
+          '',
+
         instructions:
-          validMedicines[0].instructions ||
-          'Follow the prescription.',
+          validMedicines[0].instructions,
 
         confidenceScore:
           validMedicines[0].confidence,
@@ -904,39 +838,16 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
 
 
     } catch (error) {
-
-      clearTimeout(geminiTimeout);
-
-      // Gemini timed out — return a clear, user-facing rejection
-      // so the frontend can show a helpful message rather than a
-      // raw "signal is aborted without reason" browser error.
+      if (error instanceof ApiError) throw error;
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
-        console.warn('Gemini Vision API timed out after 60s.');
-        return {
-          isValidPrescription: false,
-          medicines: [],
-          rejectionReason:
-            'The AI vision service took too long to respond. Please try again in a moment.'
-        };
+        throw new ApiError(504, 'The AI vision service took too long to respond. Please try again.');
       }
-
-      console.error(
-        'Prescription AI error:',
-        error
-      );
-
-      return {
-
-        isValidPrescription:
-          false,
-
-        medicines: [],
-
-        rejectionReason:
-          'Unable to analyze the prescription image. Please try again with a clear image.'
-
-      };
-
+      if (error instanceof TypeError) {
+        throw new ApiError(502, 'The backend could not reach the Gemini API. Check backend network access and try again.');
+      }
+      throw new ApiError(502, 'Unable to analyze the prescription image. Please try again later.');
+    } finally {
+      clearTimeout(geminiTimeout);
     }
 
   }

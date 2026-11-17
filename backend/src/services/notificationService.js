@@ -5,11 +5,12 @@ export async function createNotification({ userId, type, title, message }) {
   return Notification.create({ userId, type, title, message });
 }
 
-export async function notifyMissedDose({ patientId, patientName, medicineName, scheduledTime }) {
+export async function notifyMissedDose({ patientId, patientName, medicineName, scheduledTime, timeZone = 'UTC' }) {
   const timeStr = scheduledTime.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone,
   });
 
   await createNotification({
@@ -19,7 +20,11 @@ export async function notifyMissedDose({ patientId, patientName, medicineName, s
     message: `Medication missed: ${medicineName} at ${timeStr}.`,
   });
 
-  const connections = await CaretakerConnection.find({ patientId, status: 'ACCEPTED' });
+  const connections = await CaretakerConnection.find({
+    patientId,
+    status: 'ACCEPTED',
+    'permissions.receiveMissedAlerts': true,
+  });
 
   await Promise.all(
     connections.map((conn) =>
@@ -33,11 +38,12 @@ export async function notifyMissedDose({ patientId, patientName, medicineName, s
   );
 }
 
-export async function notifyTaken({ patientId, medicineName, takenAt }) {
+export async function notifyTaken({ patientId, medicineName, takenAt, timeZone = 'UTC' }) {
   const timeStr = takenAt.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
     hour12: true,
+    timeZone,
   });
 
   await createNotification({

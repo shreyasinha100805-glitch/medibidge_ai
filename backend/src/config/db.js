@@ -35,7 +35,7 @@ const connectDB = async () => {
       return m.connection;
     }).catch((err) => {
       cached.promise = null;
-      console.error(`❌ Failed to connect to MongoDB: ${err.message}`);
+      console.error('Failed to connect to MongoDB.', { errorType: err.name || 'Error', errorCode: err.code || undefined });
       throw err;
     });
   }

@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
+import { normalizeTimeZone } from '../utils/timeZone.js';
+import { getJwtSecret } from '../utils/jwtSecret.js';
 
 /**
  * Verifies the JWT from the Authorization header ("Bearer <token>"),
@@ -19,10 +21,11 @@ export const protect = asyncHandler(async (req, res, next) => {
     throw new ApiError(401, 'Not authorized. No token provided.');
   }
 
-  const DEFAULT_JWT_SECRET = 'CWC86EswJQw12jyKNv4Ti40YLTJJ/V1L0o+QV7aT3oJbMcVRFsxkpXv+7/QUUL8MXSHCXrR7pzARFwLmJU/1iw==';
+  const secret = getJwtSecret();
+
   let decoded;
   try {
-    decoded = jwt.verify(token, process.env.JWT_SECRET || DEFAULT_JWT_SECRET);
+    decoded = jwt.verify(token, secret, { algorithms: ['HS256'] });
   } catch (err) {
     throw new ApiError(401, 'Not authorized. Invalid or expired token.');
   }
@@ -30,6 +33,12 @@ export const protect = asyncHandler(async (req, res, next) => {
   const user = await User.findById(decoded.id);
   if (!user) {
     throw new ApiError(401, 'Not authorized. User no longer exists.');
+  }
+
+  const timeZone = normalizeTimeZone(req.get('X-Time-Zone'));
+  if (timeZone && timeZone !== user.timeZone) {
+    user.timeZone = timeZone;
+    await user.save();
   }
 
   req.user = user;

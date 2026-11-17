@@ -83,6 +83,7 @@ export const AIAssistant = ({
 
   const fileInputRef =
     useRef(null);
+  const saveRequestRef = useRef(new Map());
 
 
   const samplePrompts = [
@@ -302,7 +303,7 @@ export const AIAssistant = ({
       */
 
       const maxSize =
-        10 * 1024 * 1024;
+        7 * 1024 * 1024;
 
 
       if (
@@ -314,7 +315,7 @@ export const AIAssistant = ({
           role: 'ai',
 
           text:
-            '⚠️ Image is too large. Please upload an image smaller than 10 MB.',
+            '⚠️ Image is too large. Please upload an image smaller than 7 MB.',
 
           id:
             Date.now()
@@ -341,7 +342,7 @@ export const AIAssistant = ({
         new FileReader();
 
 
-      reader.onloadend =
+      reader.onload =
         async () => {
 
           const base64 =
@@ -412,7 +413,7 @@ export const AIAssistant = ({
 
             if (
               !pData ||
-              pData.isValidPrescription === false
+              pData.isValidPrescription !== true
             ) {
 
               throw new Error(
@@ -474,7 +475,10 @@ export const AIAssistant = ({
 
                       `${medicine.frequency ? ` — ${medicine.frequency}` : ''}` +
 
-                      `${medicine.scheduledTime ? ` — ${medicine.scheduledTime}` : ''}`
+                      `${medicine.scheduledTime ? ` — ${medicine.scheduledTime}` : ''}` +
+                      `${medicine.activeIngredient ? ` — Active ingredient: ${medicine.activeIngredient}` : ''}` +
+                      `${medicine.duration ? ` — Duration: ${medicine.duration}` : ''}` +
+                      `${medicine.instructions ? ` — Instructions: ${medicine.instructions}` : ''}`
 
                     );
 
@@ -692,8 +696,25 @@ export const AIAssistant = ({
       try {
 
         const resolvedTime = normalizeScheduledTime(pData.scheduledTime);
+        const frequency = normalizeFrequency(pData.frequency);
+        const dosage = Number(pData.dosage);
+        const units = ['mg', 'ml', 'tablet', 'capsule', 'drop', 'unit'];
 
-        if (!resolvedTime) {
+        if (!Number.isFinite(dosage) || dosage <= 0 || !units.includes(pData.unit)) {
+          if (showToast) {
+            showToast('The prescription is missing a verified dosage or unit. Review it before adding a schedule.', 'error');
+          }
+          return;
+        }
+
+        if (!frequency) {
+          if (showToast) {
+            showToast('The prescription frequency was not identified. Review it in the prescription scanner before adding a schedule.', 'error');
+          }
+          return;
+        }
+
+        if (frequency !== 'AS_NEEDED' && !resolvedTime) {
           if (showToast) {
             showToast(
               '⚠️ Medication time could not be read from the prescription. Please use the Scan Prescription modal to set the time manually before saving.',
@@ -703,35 +724,31 @@ export const AIAssistant = ({
           return;
         }
 
-        await onAddMedicine({
+        const medicineData = {
+          name: pData.name,
+          dosage,
+          activeIngredient: pData.activeIngredient || '',
+          unit: pData.unit,
+          category: normalizeCategory(pData.category),
+          ...(resolvedTime ? { scheduledTime: resolvedTime } : {}),
+          frequency,
+          duration: pData.duration || '',
+          instructions: pData.instructions || '',
+        };
+        const fingerprint = JSON.stringify(medicineData);
+        let saveRequest = saveRequestRef.current.get(msgId);
+        if (saveRequest?.fingerprint !== fingerprint) {
+          if (!globalThis.crypto?.randomUUID) {
+            throw new Error('Secure request identifiers are unavailable in this browser. Please reload the page and try again.');
+          }
+          saveRequest = {
+            fingerprint,
+            idempotencyKey: globalThis.crypto.randomUUID(),
+          };
+          saveRequestRef.current.set(msgId, saveRequest);
+        }
 
-          name:
-            pData.name,
-
-          dosage:
-            pData.dosage,
-
-          unit:
-            pData.unit,
-
-          category:
-            normalizeCategory(
-              pData.category
-            ),
-
-          scheduledTime:
-            resolvedTime,
-
-          frequency:
-            normalizeFrequency(
-              pData.frequency
-            ),
-
-          instructions:
-            pData.instructions ||
-            'Follow the doctor prescription.'
-
-        });
+        await onAddMedicine(medicineData, { idempotencyKey: saveRequest.idempotencyKey });
 
 
         setChatLogs(
@@ -1188,6 +1205,22 @@ export const AIAssistant = ({
 
                     </p>
 
+                    {msg.prescriptionCard.activeIngredient && (
+                      <p>Active ingredient: {msg.prescriptionCard.activeIngredient}</p>
+                    )}
+
+                    {msg.prescriptionCard.frequency && (
+                      <p>Frequency: {msg.prescriptionCard.frequency}</p>
+                    )}
+
+                    {msg.prescriptionCard.duration && (
+                      <p>Duration: {msg.prescriptionCard.duration}</p>
+                    )}
+
+                    {msg.prescriptionCard.instructions && (
+                      <p>Instructions: {msg.prescriptionCard.instructions}</p>
+                    )}
+
 
                     {msg.prescriptionCard.scheduledTime && (
 
@@ -1210,14 +1243,9 @@ export const AIAssistant = ({
 
                       {' '}
 
-                      {(
-                        Number(
-                          msg.prescriptionCard.confidence ||
-                          0
-                        ) * 100
-                      ).toFixed(0)}
-
-                      %
+                      {Number.isFinite(msg.prescriptionCard.confidence)
+                        ? `${Math.round(msg.prescriptionCard.confidence * 100)}% (AI estimate)`
+                        : 'Unavailable'}
 
                     </p>
 

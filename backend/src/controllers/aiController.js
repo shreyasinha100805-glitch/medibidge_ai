@@ -4,7 +4,8 @@ import asyncHandler from '../utils/asyncHandler.js';
 import { buildPatientAIContext, generateAIResponse, scanPrescriptionImage } from '../services/aiService.js';
 
 export const askAssistant = asyncHandler(async (req, res) => {
-  const { question } = req.body;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { question } = body;
 
   if (!question || typeof question !== 'string' || !question.trim()) {
     throw new ApiError(400, 'Please provide a valid question for the AI assistant.');
@@ -13,9 +14,9 @@ export const askAssistant = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
 
   // Build context from MongoDB data
-  const context = await buildPatientAIContext(patientId);
+  const context = await buildPatientAIContext(patientId, req.user.timeZone || 'UTC');
 
-  // Generate response via Gemini or intelligent fallback
+  // Generate a Gemini response or return a service error.
   const responseText = await generateAIResponse(question.trim(), context);
 
   // Record interaction for audit and history UI
@@ -53,13 +54,14 @@ export const getAIHistory = asyncHandler(async (req, res) => {
 });
 
 export const scanPrescription = asyncHandler(async (req, res) => {
-  const { imageBase64, mimeType, fileName } = req.body;
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { imageBase64, mimeType, fileName } = body;
 
   if (!imageBase64) {
     throw new ApiError(400, 'Please provide a prescription image (base64).');
   }
 
-  const result = await scanPrescriptionImage(imageBase64, mimeType || 'image/jpeg', fileName || '');
+  const result = await scanPrescriptionImage(imageBase64, mimeType, fileName || '');
 
   if (result.isValidPrescription === false) {
     throw new ApiError(400, result.rejectionReason || 'The uploaded photo does not contain a valid doctor prescription or pill label.');

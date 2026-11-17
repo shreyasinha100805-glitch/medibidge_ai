@@ -26,11 +26,13 @@ export const AlarmModal = ({
 
   if (!isOpen || !alarmData) return null;
 
-  const medicineName = alarmData?.name || 'Medicine Reminder';
-  const scheduledTime = alarmData?.scheduledTime || 'Now';
-  const dosage = alarmData?.dosage ? `${alarmData.dosage} ${alarmData.unit || 'mg'}` : '1 Dose';
-  const instructions = alarmData?.instructions || 'Take with warm water as prescribed by physician.';
-  const category = alarmData?.category || 'Prescription';
+  const medicineName = alarmData?.name || 'Medication';
+  const scheduledTime = alarmData?.scheduledTime || 'Time unavailable';
+  const dosage = alarmData?.dosage
+    ? `${alarmData.dosage}${alarmData.unit ? ` ${alarmData.unit}` : ''}`
+    : 'Dose details unavailable';
+  const instructions = alarmData?.instructions || '';
+  const category = alarmData?.category || 'Medicine';
 
   const handleTake = () => {
     stopAlarmLoop();
@@ -181,9 +183,11 @@ export const AlarmModal = ({
             </span>
           </div>
 
-          <p style={{ color: '#cbd5e1', fontSize: '0.92rem', marginTop: '0.75rem', lineHeight: '1.45' }}>
-            {instructions}
-          </p>
+          {instructions && (
+            <p style={{ color: '#cbd5e1', fontSize: '0.92rem', marginTop: '0.75rem', lineHeight: '1.45' }}>
+              {instructions}
+            </p>
+          )}
         </div>
 
         {/* Sound Controls Bar */}
@@ -256,7 +260,7 @@ export const AlarmModal = ({
               borderRadius: '14px',
             }}
           >
-            ✓ Mark Taken Now (+15 Pts)
+            ✓ Mark Taken Now
           </button>
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.6rem' }}>

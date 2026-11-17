@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister, onQuickDemoLogin }) => {
+export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
@@ -73,7 +73,7 @@ export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister,
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Amal Perera"
+                placeholder="e.g. Alex Morgan"
                 style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', padding: '0.75rem', borderRadius: '10px', outline: 'none' }}
               />
             </div>
@@ -86,7 +86,7 @@ export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister,
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="e.g. amal@demo.com"
+              placeholder="you@example.com"
               style={{ width: '100%', background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.1)', color: '#fff', padding: '0.75rem', borderRadius: '10px', outline: 'none' }}
             />
           </div>
@@ -123,27 +123,6 @@ export const AuthModal = ({ isOpen, onClose, mode, setMode, onLogin, onRegister,
             {loading ? 'Processing...' : mode === 'login' ? 'Log In' : 'Create Account'}
           </button>
         </form>
-
-        {/* Fast Demo Buttons */}
-        <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.1)' }}>
-          <p style={{ fontSize: '0.8rem', color: '#9ca3af', textAlign: 'center', marginBottom: '0.75rem', fontWeight: 600 }}>
-            Judge Quick Login (Seed Accounts):
-          </p>
-          <div style={{ display: 'flex', gap: '0.6rem' }}>
-            <button
-              onClick={() => { onQuickDemoLogin('amal@demo.com', 'Demo@123'); onClose(); }}
-              style={{ flex: 1, background: 'rgba(6, 182, 212, 0.1)', border: '1px solid rgba(6, 182, 212, 0.3)', color: '#38bdf8', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Amal (Patient)
-            </button>
-            <button
-              onClick={() => { onQuickDemoLogin('nimani@demo.com', 'Demo@123'); onClose(); }}
-              style={{ flex: 1, background: 'rgba(16, 185, 129, 0.1)', border: '1px solid rgba(16, 185, 129, 0.3)', color: '#34d399', padding: '0.5rem', borderRadius: '8px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
-            >
-              Nimani (Caretaker)
-            </button>
-          </div>
-        </div>
 
       </div>
     </div>

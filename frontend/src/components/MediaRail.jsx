@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { IconPill, IconCheckCircle, IconClock, IconPlay } from './Icons';
 
-export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, activeTab, badgeColor = 'netflix' }) {
+export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound }) {
   const railRef = useRef(null);
 
   const scroll = (direction) => {
@@ -153,7 +153,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                   {item.name || item.medicineName || item.title}
                 </h4>
                 <p style={{ fontSize: '0.8rem', color: '#94a3b8', fontWeight: 500, margin: '0.2rem 0 0 0', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {item.dosage || item.description || item.instructions || '1 Dose after meal'}
+                  {item.dosage || 'Dose details unavailable'}
                 </p>
               </div>
 
@@ -190,9 +190,9 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                     <IconPill className="w-5 h-5" color={isTaken ? '#34d399' : '#06b6d4'} />
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>{item.form || 'Tablet / Capsule'}</div>
+                    <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#f8fafc' }}>{item.form || 'Form not recorded'}</div>
                     <div style={{ fontSize: '0.72rem', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '140px' }}>
-                      {item.instructions || 'Take with water'}
+                      {item.instructions || 'No instructions recorded'}
                     </div>
                   </div>
                 </div>
@@ -242,7 +242,7 @@ export function MediaRail({ title, subtitle, items, onMarkTaken, onPlaySound, ac
                       gap: '0.4rem',
                     }}
                   >
-                    <IconCheckCircle className="w-4 h-4" color="#ffffff" /> Mark Taken (+15 pts)
+                    <IconCheckCircle className="w-4 h-4" color="#ffffff" /> Mark Taken
                   </button>
                 )}
               </div>

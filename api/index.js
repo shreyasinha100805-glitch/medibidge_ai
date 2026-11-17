@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   try {
     await connectDB();
   } catch (err) {
-    console.error('Database connection failed in serverless handler:', err);
+    console.error('Serverless database connection failed.', err?.name || 'Error');
   }
 
   if (req.url && !req.url.startsWith('/api')) {

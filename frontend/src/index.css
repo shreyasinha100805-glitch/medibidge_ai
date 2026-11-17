@@ -392,6 +392,11 @@ h1, h2, h3, h4, h5, h6 {
   box-shadow: 0 0 10px #34d399;
 }
 
+.pulse-dot-muted {
+  background-color: #94a3b8;
+  box-shadow: 0 0 8px rgba(148, 163, 184, 0.45);
+}
+
 .pulse-dot-green::after {
   content: '';
   position: absolute;

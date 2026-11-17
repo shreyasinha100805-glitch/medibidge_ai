@@ -6,18 +6,28 @@ import React, { useState } from 'react';
 export const DailyTrendBarChart = ({ data = [] }) => {
   const [hoveredIdx, setHoveredIdx] = useState(null);
 
-  // Fallback demo 7-day trend if empty
-  const trendData = data.length > 0 ? data : [
-    { day: 'Mon', taken: 3, missed: 0, total: 3, date: 'Aug 2' },
-    { day: 'Tue', taken: 3, missed: 0, total: 3, date: 'Aug 3' },
-    { day: 'Wed', taken: 2, missed: 1, total: 3, date: 'Aug 4' },
-    { day: 'Thu', taken: 3, missed: 0, total: 3, date: 'Aug 5' },
-    { day: 'Fri', taken: 1, missed: 2, total: 3, date: 'Aug 6' },
-    { day: 'Sat', taken: 3, missed: 0, total: 3, date: 'Aug 7' },
-    { day: 'Sun', taken: 2, missed: 1, total: 3, date: 'Aug 8' },
-  ];
+  const trendData = (Array.isArray(data) ? data : []).map((item) => {
+    const taken = Number(item.taken) || 0;
+    const missed = Number(item.missed) || 0;
+    const pending = Number(item.pending) || 0;
+    const date = item.date ? new Date(`${item.date}T00:00:00`) : null;
 
-  const maxDoses = Math.max(...trendData.map(d => d.total || 3), 4);
+    return {
+      ...item,
+      taken,
+      missed,
+      pending,
+      total: taken + missed,
+      day: item.day || (date && !Number.isNaN(date.valueOf())
+        ? date.toLocaleDateString(undefined, { weekday: 'short' })
+        : ''),
+      displayDate: date && !Number.isNaN(date.valueOf())
+        ? date.toLocaleDateString()
+        : '',
+    };
+  });
+  const hasDoseData = trendData.some((item) => item.taken + item.missed + item.pending > 0);
+  const maxDoses = Math.max(...trendData.map((item) => item.total), 1);
   const chartHeight = 160;
 
   return (
@@ -39,10 +49,14 @@ export const DailyTrendBarChart = ({ data = [] }) => {
 
       <div style={{ height: `${chartHeight}px`, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '0.8rem', padding: '0 0.5rem', position: 'relative' }}>
         
-        {trendData.map((item, idx) => {
+        {!hasDoseData ? (
+          <div style={{ minHeight: `${chartHeight}px`, display: 'grid', placeItems: 'center', color: '#94a3b8', textAlign: 'center' }}>
+            No dose records are available for the last 7 days.
+          </div>
+        ) : trendData.map((item, idx) => {
           const takenHeight = (item.taken / maxDoses) * chartHeight;
           const missedHeight = (item.missed / maxDoses) * chartHeight;
-          const totalPct = Math.round((item.taken / (item.total || 1)) * 100);
+          const totalPct = item.total > 0 ? Math.round((item.taken / item.total) * 100) : null;
           const isHovered = hoveredIdx === idx;
 
           return (
@@ -131,12 +145,15 @@ export const DailyTrendBarChart = ({ data = [] }) => {
 /**
  * Animated Donut Radial Gauge SVG
  */
-export const AdherenceDonutGauge = ({ percentage = 85, label = "30-Day Score", size = 160 }) => {
+export const AdherenceDonutGauge = ({ percentage = null, label = "30-Day Score", size = 160 }) => {
   const radius = (size - 24) / 2;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - (percentage / 100) * circumference;
+  const value = typeof percentage === 'number' && Number.isFinite(percentage)
+    ? Math.min(100, Math.max(0, percentage))
+    : null;
+  const strokeDashoffset = value === null ? circumference : circumference - (value / 100) * circumference;
 
-  const color = percentage >= 80 ? '#34d399' : percentage >= 60 ? '#fbbf24' : '#fb7185';
+  const color = value === null ? '#64748b' : value >= 80 ? '#34d399' : value >= 60 ? '#fbbf24' : '#fb7185';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
@@ -188,7 +205,7 @@ export const AdherenceDonutGauge = ({ percentage = 85, label = "30-Day Score", s
           }}
         >
           <span style={{ fontSize: '2.2rem', fontWeight: 900, color: '#f8fafc', lineHeight: 1 }}>
-            {percentage}%
+            {value === null ? '—' : `${value}%`}
           </span>
           <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#94a3b8', marginTop: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {label}

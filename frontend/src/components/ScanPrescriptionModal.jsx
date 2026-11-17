@@ -1,6 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { IconCamera, IconSparkles, IconCheckCircle } from './Icons';
+import { CameraCapture } from './CameraCapture';
 import { scanPrescriptionImageAPI } from '../api';
+
+const getLocalDateInput = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.valueOf())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
 
 /*
  * ScanPrescriptionModal
@@ -29,6 +36,9 @@ export const ScanPrescriptionModal = ({
   const [imageMime,    setImageMime]      = useState('image/jpeg');
   const [scanning,     setScanning]       = useState(false);
   const [extractedData, setExtractedData] = useState(null); // null until user scans
+  const [extractedForms, setExtractedForms] = useState([]);
+  const [selectedMedicineIndex, setSelectedMedicineIndex] = useState(0);
+  const [savedMedicineIndexes, setSavedMedicineIndexes] = useState([]);
   const [confirmed,    setConfirmed]      = useState(false); // true only after user clicks Confirm
   const [error,        setError]          = useState('');
   const [adding,       setAdding]         = useState(false);
@@ -36,6 +46,8 @@ export const ScanPrescriptionModal = ({
   const [timeWarning,  setTimeWarning]    = useState(false);
 
   const fileInputRef = useRef(null);
+  const scanInFlightRef = useRef(false);
+  const submissionRequestRef = useRef(new Map());
 
   if (!isOpen) return null;
 
@@ -43,12 +55,40 @@ export const ScanPrescriptionModal = ({
 
   const normalizeFrequency = (freq) => {
     const valid = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
-    return valid.includes(freq) ? freq : 'DAILY';
+    return valid.includes(freq) ? freq : '';
   };
 
   const normalizeCategory = (cat) => {
     const valid = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Supplement', 'Other'];
     return valid.includes(cat) ? cat : 'Other';
+  };
+
+  const buildExtractedForm = (prescription, medicine, index) => {
+    const primaryMedicine = index === 0;
+    return {
+      name: medicine.name || (primaryMedicine ? prescription.name : '') || '',
+      activeIngredient: medicine.activeIngredient || (primaryMedicine ? prescription.activeIngredient : '') || '',
+      dosage: medicine.dosage || (primaryMedicine ? prescription.dosage : '') || '',
+      unit: medicine.unit || (primaryMedicine ? prescription.unit : '') || '',
+      category: normalizeCategory(primaryMedicine ? prescription.category : ''),
+      scheduledTime: normalizeScheduledTime(medicine.scheduledTime || (primaryMedicine ? prescription.scheduledTime : '')) || '',
+      frequency: normalizeFrequency(medicine.frequency || (primaryMedicine ? prescription.frequency : '')),
+      duration: medicine.duration || (primaryMedicine ? prescription.duration : '') || '',
+      startDate: getLocalDateInput(),
+      endDate: '',
+      instructions: medicine.instructions || (primaryMedicine ? prescription.instructions : '') || '',
+      confidenceScore: medicine.confidence ?? (primaryMedicine ? prescription.confidenceScore : null),
+      aiModelUsed: prescription.aiModelUsed || 'Gemini Vision',
+    };
+  };
+
+  const updateExtractedData = (patch) => {
+    if (!extractedData) return;
+    const updated = { ...extractedData, ...patch };
+    setExtractedData(updated);
+    setExtractedForms((forms) => forms.map((form, index) => (
+      index === selectedMedicineIndex ? updated : form
+    )));
   };
 
   // Converts any time string (12-h or 24-h) → strict HH:mm.
@@ -70,37 +110,32 @@ export const ScanPrescriptionModal = ({
     return null;
   };
 
-  // Keyword pre-filter — obvious non-medical file names are rejected
-  // immediately without touching the backend.
-  const NON_MEDICAL_KEYWORDS = [
-    'selfie', 'portrait', 'face', 'people', 'person', 'baby', 'kid', 'child',
-    'family', 'wedding', 'birthday', 'party', 'friend',
-    'cat', 'dog', 'bird', 'animal', 'pet', 'puppy', 'kitten',
-    'landscape', 'nature', 'beach', 'mountain', 'sky', 'sunset', 'forest',
-    'food', 'meal', 'dinner', 'lunch', 'coffee', 'drink',
-    'screenshot', 'screen', 'desktop', 'wallpaper', 'capture', 'snapshot',
-    'meme', 'avatar', 'profile', 'logo', 'banner', 'icon',
-    'assignment', 'homework', 'exam', 'test', 'code', 'java', 'python',
-    'diagram', 'chart', 'slide', 'presentation', 'pdf', 'doc',
-    'car', 'bike', 'vehicle', 'road', 'shoe', 'chair', 'desk', 'laptop',
-  ];
-
-  const isNonMedicalFileName = (name) => {
-    const lower = (name || '').toLowerCase();
-    return lower.length > 0 && NON_MEDICAL_KEYWORDS.some((kw) => lower.includes(kw));
-  };
-
   /* ── Reset everything — called whenever user picks a new file ───────── */
   const resetScanState = () => {
     setExtractedData(null);
+    setExtractedForms([]);
+    setSelectedMedicineIndex(0);
+    setSavedMedicineIndexes([]);
+    submissionRequestRef.current.clear();
     setConfirmed(false);
     setError('');
     setTimeWarning(false);
   };
 
+  const handleClose = (force = false) => {
+    if (!force && (scanInFlightRef.current || adding)) return;
+    resetScanState();
+    setImagePreview(null);
+    setImageBase64(null);
+    setFileName('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
+    onClose();
+  };
+
   /* ── File selection ─────────────────────────────────────────────────── */
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
+    if (scanInFlightRef.current) return;
+    const file = e.target.files?.[0];
     if (!file) return;
 
     // Wipe ALL previous results immediately — requirement 7 & 8
@@ -109,29 +144,44 @@ export const ScanPrescriptionModal = ({
     setImageBase64(null);
 
     setFileName(file.name || '');
-    setImageMime(file.type || 'image/jpeg');
-
-    // Client-side keyword pre-filter
-    if (isNonMedicalFileName(file.name)) {
-      setError('Invalid Image. Please upload a valid medical prescription or supported medicine label.');
-      // Reset the file input so the same rejected file can be re-detected
+    if (!['image/jpeg', 'image/jpg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Upload a JPG, PNG, or WEBP image.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
+    if (file.size > 7 * 1024 * 1024) {
+      setError('The image is too large. Upload an image under 7 MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setImageMime(file.type === 'image/jpg' ? 'image/jpeg' : file.type);
 
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
       setImageBase64(reader.result);
     };
+    reader.onerror = () => setError('Could not read this image. Please choose another file.');
     reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = ({ dataUrl, mimeType, fileName: capturedFileName }) => {
+    if (scanInFlightRef.current) return;
+    resetScanState();
+    setImagePreview(dataUrl);
+    setImageBase64(dataUrl);
+    setImageMime(mimeType);
+    setFileName(capturedFileName);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   /* ── Trigger AI scan ────────────────────────────────────────────────── */
   const handleStartScan = async () => {
-    if (!imageBase64 || scanning) return;
+    if (!imageBase64 || scanning || scanInFlightRef.current) return;
 
     // Always clear previous results before a new scan
+    scanInFlightRef.current = true;
+    submissionRequestRef.current.clear();
     resetScanState();
     setScanning(true);
 
@@ -140,7 +190,7 @@ export const ScanPrescriptionModal = ({
       const pres = res?.data?.prescription || res?.prescription;
 
       // ── Validation failed ───────────────────────────────────────────
-      if (!pres || pres.isValidPrescription === false) {
+      if (!pres || pres.isValidPrescription !== true) {
         setError(
           pres?.rejectionReason ||
           'Invalid Image. Please upload a valid medical prescription or supported medicine label.'
@@ -149,25 +199,21 @@ export const ScanPrescriptionModal = ({
       }
 
       // ── Valid prescription ──────────────────────────────────────────
-      const firstMed       = pres.medicines?.[0] || {};
-      const rawTime        = pres.scheduledTime || firstMed.scheduledTime || '';
-      const normalizedTime = normalizeScheduledTime(rawTime);
-      const needsTime      = !normalizedTime;
+      const medicines = Array.isArray(pres.medicines) ? pres.medicines : [];
+      if (medicines.length === 0) {
+        setError('No medicine could be confidently identified. Please upload a clearer prescription.');
+        return;
+      }
+      const forms = medicines.map((medicine, index) => buildExtractedForm(pres, medicine, index));
+      const firstForm = forms[0];
 
-      setTimeWarning(needsTime);
+      setExtractedForms(forms);
+      setSelectedMedicineIndex(0);
+      setSavedMedicineIndexes([]);
+      setTimeWarning(Boolean(firstForm.frequency && firstForm.frequency !== 'AS_NEEDED' && !firstForm.scheduledTime));
 
-      // Store results — user must still click Confirm before anything is saved
-      setExtractedData({
-        name:           pres.name || firstMed.name || '',
-        dosage:         pres.dosage || firstMed.dosage || '',
-        unit:           pres.unit  || firstMed.unit  || 'mg',
-        category:       pres.category || 'Other',
-        scheduledTime:  normalizedTime || '',
-        frequency:      normalizeFrequency(pres.frequency || firstMed.frequency || 'DAILY'),
-        instructions:   pres.instructions || firstMed.instructions || '',
-        confidenceScore: pres.confidenceScore || firstMed.confidence || 0,
-        aiModelUsed:    pres.aiModelUsed || 'Gemini Vision',
-      });
+      // Keep each extracted medicine separately editable; saving remains one confirmed medicine at a time.
+      setExtractedData(firstForm);
       setConfirmed(false); // user must explicitly confirm
 
     } catch (err) {
@@ -176,17 +222,25 @@ export const ScanPrescriptionModal = ({
         'The uploaded image could not be verified as a valid medical prescription.'
       );
     } finally {
+      scanInFlightRef.current = false;
       setScanning(false);
     }
   };
 
   /* ── User confirms extracted data & saves ───────────────────────────── */
   const handleConfirmAdd = async () => {
-    if (!extractedData || !confirmed || adding) return;
+    if (!extractedData || !confirmed || adding || savedMedicineIndexes.includes(selectedMedicineIndex)) return;
 
-    // Medical safety — time must be set
-    if (!extractedData.scheduledTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime)) {
+    if (!extractedData.frequency) {
+      setError('Select the frequency shown on your prescription.');
+      return;
+    }
+    if (extractedData.frequency !== 'AS_NEEDED' && (!extractedData.scheduledTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime))) {
       setError('Please set a valid scheduled time (HH:MM, 24-hour) before saving. This is required for your medication alarm.');
+      return;
+    }
+    if (extractedData.scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime)) {
+      setError('Please set a valid scheduled time (HH:MM, 24-hour), or clear it for an as-needed medicine.');
       return;
     }
 
@@ -194,21 +248,63 @@ export const ScanPrescriptionModal = ({
       setError('Medicine name cannot be empty. Please verify the extracted information.');
       return;
     }
+    if (!Number.isFinite(Number(extractedData.dosage)) || Number(extractedData.dosage) <= 0) {
+      setError('Enter the dosage amount shown on your prescription.');
+      return;
+    }
+    if (!extractedData.unit) {
+      setError('Select the dosage unit shown on your prescription.');
+      return;
+    }
+    if (!extractedData.startDate || (extractedData.endDate && extractedData.endDate < extractedData.startDate)) {
+      setError('Choose a valid start date and an end date on or after it.');
+      return;
+    }
 
     setAdding(true);
     setError('');
 
     try {
-      await onAddMedicine({
+      const medicineData = {
         name:         extractedData.name.trim(),
-        dosage:       Number(extractedData.dosage) || 1,
-        unit:         extractedData.unit || 'mg',
+        activeIngredient: extractedData.activeIngredient.trim(),
+        dosage:       Number(extractedData.dosage),
+        unit:         extractedData.unit,
         category:     normalizeCategory(extractedData.category),
-        scheduledTime: extractedData.scheduledTime,
-        frequency:    normalizeFrequency(extractedData.frequency),
-        instructions: extractedData.instructions || 'Take as prescribed by your doctor.',
+        ...(extractedData.scheduledTime ? { scheduledTime: extractedData.scheduledTime } : {}),
+        frequency:    extractedData.frequency,
+        duration:     extractedData.duration.trim(),
+        startDate:    extractedData.startDate,
+        endDate:      extractedData.endDate || null,
+        instructions: extractedData.instructions.trim(),
+      };
+      const fingerprint = JSON.stringify(medicineData);
+      let submissionRequest = submissionRequestRef.current.get(selectedMedicineIndex);
+      if (submissionRequest?.fingerprint !== fingerprint) {
+        if (!globalThis.crypto?.randomUUID) {
+          throw new Error('Secure request identifiers are unavailable in this browser. Please reload the page and try again.');
+        }
+        submissionRequest = {
+          fingerprint,
+          idempotencyKey: globalThis.crypto.randomUUID(),
+        };
+        submissionRequestRef.current.set(selectedMedicineIndex, submissionRequest);
+      }
+      await onAddMedicine(medicineData, {
+        idempotencyKey: submissionRequest.idempotencyKey,
       });
-      onClose();
+      const savedIndexes = [...new Set([...savedMedicineIndexes, selectedMedicineIndex])];
+      setSavedMedicineIndexes(savedIndexes);
+      const nextIndex = extractedForms.findIndex((_, index) => !savedIndexes.includes(index));
+      if (nextIndex < 0) {
+        handleClose(true);
+      } else {
+        const nextForm = extractedForms[nextIndex];
+        setSelectedMedicineIndex(nextIndex);
+        setExtractedData(nextForm);
+        setConfirmed(false);
+        setTimeWarning(Boolean(nextForm.frequency && nextForm.frequency !== 'AS_NEEDED' && !nextForm.scheduledTime));
+      }
     } catch (err) {
       setError(err.message || 'Failed to save prescription. Please check the details and try again.');
     } finally {
@@ -242,7 +338,7 @@ export const ScanPrescriptionModal = ({
       <div className="glass-panel" style={{ width: '100%', maxWidth: '640px', maxHeight: '90vh', overflowY: 'auto', padding: '2rem', position: 'relative', border: '1px solid rgba(139,92,246,0.4)' }}>
 
         {/* Back button */}
-        <button onClick={onClose} className="btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
+        <button onClick={() => handleClose()} disabled={scanning || adding} className="btn-ghost" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginBottom: '1rem', padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}>
           {t.backToDashboard || '← Back to Dashboard'}
         </button>
 
@@ -299,9 +395,30 @@ export const ScanPrescriptionModal = ({
                 type="file"
                 accept="image/jpeg,image/jpg,image/png,image/webp"
                 onChange={handleImageChange}
+                disabled={scanning}
                 style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
               />
             </div>
+
+            {!imagePreview && <CameraCapture onCapture={handleCameraCapture} disabled={scanning || adding} />}
+
+            {imagePreview && !scanning && (
+              <button
+                type="button"
+                onClick={() => {
+                  setImagePreview(null);
+                  setImageBase64(null);
+                  setFileName('');
+                  submissionRequestRef.current = null;
+                  resetScanState();
+                  if (fileInputRef.current) fileInputRef.current.value = '';
+                }}
+                className="btn-ghost"
+                style={{ alignSelf: 'center', padding: '0.45rem 0.8rem' }}
+              >
+                Remove image
+              </button>
+            )}
 
             {/* Accepted formats hint */}
             <p style={{ fontSize: '0.75rem', color: '#475569', textAlign: 'center', margin: '-0.5rem 0 0' }}>
@@ -329,8 +446,36 @@ export const ScanPrescriptionModal = ({
           /* ── Extracted results — user must confirm before saving ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
 
+            {extractedForms.length > 1 && (
+              <div>
+                <label htmlFor="prescription-medicine-select" style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>
+                  Extracted medicines ({extractedForms.length})
+                </label>
+                <select
+                  id="prescription-medicine-select"
+                  value={selectedMedicineIndex}
+                  onChange={(event) => {
+                    const index = Number(event.target.value);
+                    const nextForm = extractedForms[index];
+                    setSelectedMedicineIndex(index);
+                    setExtractedData(nextForm);
+                    setConfirmed(false);
+                    setError('');
+                    setTimeWarning(Boolean(nextForm.frequency && nextForm.frequency !== 'AS_NEEDED' && !nextForm.scheduledTime));
+                  }}
+                  style={selectStyle}
+                >
+                  {extractedForms.map((form, index) => (
+                    <option key={`${index}-${form.name}`} value={index}>
+                      {index + 1}. {form.name || 'Name needs review'}{savedMedicineIndexes.includes(index) ? ' — saved' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Time warning */}
-            {timeWarning && (
+            {timeWarning && extractedData.frequency !== 'AS_NEEDED' && (
               <div style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24', padding: '0.9rem 1rem', borderRadius: '12px', fontSize: '0.85rem' }}>
                 ⚠️ <strong>Action Required:</strong> The prescription time could not be read clearly. Please set the correct scheduled time below before saving.
               </div>
@@ -343,7 +488,9 @@ export const ScanPrescriptionModal = ({
                   ✓ Prescription Extracted ({extractedData.aiModelUsed})
                 </span>
                 <span style={{ fontSize: '0.75rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 700 }}>
-                  {((extractedData.confidenceScore || 0) * 100).toFixed(0)}% Confidence
+                  {Number.isFinite(extractedData.confidenceScore)
+                    ? `${(extractedData.confidenceScore * 100).toFixed(0)}% AI estimate`
+                    : 'Confidence unavailable'}
                 </span>
               </div>
 
@@ -355,7 +502,17 @@ export const ScanPrescriptionModal = ({
                   <input
                     type="text"
                     value={extractedData.name}
-                    onChange={(e) => setExtractedData({ ...extractedData, name: e.target.value })}
+                    onChange={(e) => updateExtractedData({ name: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Active Ingredient (if shown)</label>
+                  <input
+                    type="text"
+                    value={extractedData.activeIngredient}
+                    onChange={(e) => updateExtractedData({ activeIngredient: e.target.value })}
                     style={inputStyle}
                   />
                 </div>
@@ -367,14 +524,15 @@ export const ScanPrescriptionModal = ({
                     <input
                       type="text"
                       value={extractedData.dosage}
-                      onChange={(e) => setExtractedData({ ...extractedData, dosage: e.target.value })}
+                      onChange={(e) => updateExtractedData({ dosage: e.target.value })}
                       style={{ ...inputStyle, width: '50%' }}
                     />
                     <select
                       value={extractedData.unit}
-                      onChange={(e) => setExtractedData({ ...extractedData, unit: e.target.value })}
+                      onChange={(e) => updateExtractedData({ unit: e.target.value })}
                       style={{ ...selectStyle, width: '50%' }}
                     >
+                      <option value="">Select unit</option>
                       <option value="mg">mg</option>
                       <option value="tablet">tablet</option>
                       <option value="ml">ml</option>
@@ -392,9 +550,13 @@ export const ScanPrescriptionModal = ({
                   </label>
                   <input
                     type="time"
-                    required
+                    required={extractedData.frequency !== 'AS_NEEDED'}
                     value={extractedData.scheduledTime}
-                    onChange={(e) => { setExtractedData({ ...extractedData, scheduledTime: e.target.value }); setTimeWarning(false); }}
+                    onChange={(e) => {
+                      const scheduledTime = e.target.value;
+                      updateExtractedData({ scheduledTime });
+                      setTimeWarning(!scheduledTime && extractedData.frequency !== 'AS_NEEDED');
+                    }}
                     style={{ ...inputStyle, borderColor: timeWarning ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.1)' }}
                   />
                 </div>
@@ -403,10 +565,16 @@ export const ScanPrescriptionModal = ({
                 <div>
                   <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Frequency</label>
                   <select
+                    required
                     value={extractedData.frequency}
-                    onChange={(e) => setExtractedData({ ...extractedData, frequency: e.target.value })}
+                    onChange={(e) => {
+                      const frequency = e.target.value;
+                      updateExtractedData({ frequency, ...(frequency === 'AS_NEEDED' ? { scheduledTime: '' } : {}) });
+                      setTimeWarning(frequency !== 'AS_NEEDED' && !extractedData.scheduledTime);
+                    }}
                     style={selectStyle}
                   >
+                    <option value="">Select frequency</option>
                     <option value="DAILY">Daily</option>
                     <option value="ALTERNATE_DAYS">Alternate Days</option>
                     <option value="WEEKLY">Weekly</option>
@@ -414,12 +582,45 @@ export const ScanPrescriptionModal = ({
                   </select>
                 </div>
 
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Duration (as written)</label>
+                  <input
+                    type="text"
+                    value={extractedData.duration}
+                    onChange={(e) => updateExtractedData({ duration: e.target.value })}
+                    placeholder="Not identified"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={extractedData.startDate}
+                    onChange={(e) => updateExtractedData({ startDate: e.target.value })}
+                    style={{ ...inputStyle, colorScheme: 'dark' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule End Date (optional)</label>
+                  <input
+                    type="date"
+                    min={extractedData.startDate || undefined}
+                    value={extractedData.endDate}
+                    onChange={(e) => updateExtractedData({ endDate: e.target.value })}
+                    style={{ ...inputStyle, colorScheme: 'dark' }}
+                  />
+                </div>
+
                 {/* Category */}
                 <div>
                   <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Category</label>
                   <select
                     value={extractedData.category}
-                    onChange={(e) => setExtractedData({ ...extractedData, category: e.target.value })}
+                    onChange={(e) => updateExtractedData({ category: e.target.value })}
                     style={selectStyle}
                   >
                     <option value="Antibiotic">Antibiotic</option>
@@ -434,11 +635,11 @@ export const ScanPrescriptionModal = ({
 
               {/* Instructions */}
               <div style={{ marginTop: '0.8rem' }}>
-                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Instructions</label>
+                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Prescription instructions (as written)</label>
                 <input
                   type="text"
                   value={extractedData.instructions}
-                  onChange={(e) => setExtractedData({ ...extractedData, instructions: e.target.value })}
+                  onChange={(e) => updateExtractedData({ instructions: e.target.value })}
                   style={inputStyle}
                 />
               </div>
@@ -465,7 +666,7 @@ export const ScanPrescriptionModal = ({
             {/* Action buttons */}
             <div style={{ display: 'flex', gap: '0.8rem' }}>
               <button
-                onClick={() => { setExtractedData(null); setConfirmed(false); setTimeWarning(false); setError(''); }}
+                onClick={resetScanState}
                 className="btn-ghost"
                 style={{ flex: 1, justifyContent: 'center' }}
               >
@@ -473,12 +674,12 @@ export const ScanPrescriptionModal = ({
               </button>
               <button
                 onClick={handleConfirmAdd}
-                disabled={adding || !confirmed}
+                disabled={adding || !confirmed || savedMedicineIndexes.includes(selectedMedicineIndex)}
                 className="btn-primary"
-                style={{ flex: 2, justifyContent: 'center', opacity: (!confirmed || adding) ? 0.5 : 1, cursor: (!confirmed || adding) ? 'not-allowed' : 'pointer' }}
+                style={{ flex: 2, justifyContent: 'center', opacity: (!confirmed || adding || savedMedicineIndexes.includes(selectedMedicineIndex)) ? 0.5 : 1, cursor: (!confirmed || adding || savedMedicineIndexes.includes(selectedMedicineIndex)) ? 'not-allowed' : 'pointer' }}
               >
                 <IconCheckCircle className="w-5 h-5" color="#ffffff" />
-                {adding ? (t.sending || 'Saving...') : (t.confirmAndBuild || 'Confirm & Build Schedule')}
+                {adding ? (t.sending || 'Saving...') : (savedMedicineIndexes.includes(selectedMedicineIndex) ? 'Already Saved' : (t.confirmAndBuild || 'Confirm & Build Schedule'))}
               </button>
             </div>
           </div>

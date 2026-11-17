@@ -13,14 +13,21 @@ import { runReminderCycle } from './services/reminderService.js';
 const PORT = process.env.PORT || 5000;
 
 const startServer = async () => {
-  await connectDB();
-
   app.listen(PORT, () => {
     console.log(`🚀 MediBridge AI backend running on port ${PORT}`);
   });
 
+  try {
+    await connectDB();
+  } catch {
+    // The health route must remain reachable while MongoDB is unavailable.
+    // Database-backed API requests retry through the existing app middleware.
+    console.error('Initial MongoDB connection failed; health checks remain available.');
+  }
+
   cron.schedule('* * * * *', async () => {
     try {
+      await connectDB();
       const result = await runReminderCycle();
       if (result.missedProcessed > 0) {
         console.log(
@@ -28,7 +35,7 @@ const startServer = async () => {
         );
       }
     } catch (err) {
-      console.error('Reminder cycle error:', err.message);
+      console.error('Reminder cycle failed.', err.name || 'Error');
     }
   });
 
@@ -38,10 +45,10 @@ const startServer = async () => {
 startServer();
 
 process.on('unhandledRejection', (err) => {
-  console.error('Unhandled Rejection:', err.message);
+  console.error('Unhandled Rejection:', err?.name || 'Error');
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('Uncaught Exception:', err.message);
+  console.error('Uncaught Exception:', err?.name || 'Error');
   process.exit(1);
 });
