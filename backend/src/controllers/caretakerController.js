@@ -7,13 +7,18 @@ import ApiError from '../utils/ApiError.js';
 import asyncHandler from '../utils/asyncHandler.js';
 import { getMonthAdherence, getMedicineWiseAdherence, getDailyAdherenceTrend } from '../services/adherenceService.js';
 import { ensureTodayLogsForPatient } from '../services/reminderService.js';
+import { logAuditEvent } from './auditLogController.js';
+import { getRollingDateRange, getZonedDayBounds } from '../utils/timeZone.js';
 
 /**
  * Send a connection request by email (Patient -> Caretaker or Caretaker -> Patient)
  */
 export const sendConnectionRequest = asyncHandler(async (req, res) => {
-  const { email } = req.body;
-  if (!email) throw new ApiError(400, 'Target user email is required.');
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { email } = body;
+  if (typeof email !== 'string' || !/^\S+@\S+\.\S+$/.test(email.trim())) {
+    throw new ApiError(400, 'A valid target user email is required.');
+  }
 
   const targetUser = await User.findOne({ email: email.toLowerCase().trim() });
   if (!targetUser) throw new ApiError(404, 'User with this email was not found.');
@@ -141,7 +146,8 @@ export const getRequests = asyncHandler(async (req, res) => {
  * Accept or Reject a pending request
  */
 export const respondToRequest = asyncHandler(async (req, res) => {
-  const { status } = req.body; // ACCEPTED or REJECTED
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
+  const { status } = body; // ACCEPTED or REJECTED
   if (!['ACCEPTED', 'REJECTED'].includes(status)) {
     throw new ApiError(400, 'Status must be ACCEPTED or REJECTED.');
   }
@@ -155,6 +161,16 @@ export const respondToRequest = asyncHandler(async (req, res) => {
 
   if (!isCaretakerTarget && !isPatientTarget) {
     throw new ApiError(403, 'Not authorized to respond to this request.');
+  }
+  if (connection.status !== 'PENDING') {
+    throw new ApiError(409, 'This connection request is no longer pending.');
+  }
+
+  const isInitiator = connection.initiatorId
+    ? connection.initiatorId.toString() === req.user._id.toString()
+    : req.user.role === 'CARETAKER' && isCaretakerTarget;
+  if (isInitiator) {
+    throw new ApiError(403, 'Only the recipient can respond to a connection request.');
   }
 
   connection.status = status;
@@ -185,21 +201,20 @@ export const getMyPatients = asyncHandler(async (req, res) => {
   const connections = await CaretakerConnection.find({
     caretakerId: req.user._id,
     status: 'ACCEPTED',
-  }).populate('patientId', 'name email profileImage createdAt');
+    'permissions.viewAdherence': true,
+  }).populate('patientId', 'name email profileImage createdAt timeZone');
 
   const patientsData = await Promise.all(
     connections.map(async (conn) => {
       const patient = conn.patientId;
       if (!patient) return null;
 
-      await ensureTodayLogsForPatient(patient._id);
-      const adherence = await getMonthAdherence(patient._id);
+      const timeZone = patient.timeZone || 'UTC';
+      await ensureTodayLogsForPatient(patient._id, timeZone);
+      const adherence = await getMonthAdherence(patient._id, timeZone);
 
       // Check today's status overview
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const { start: today, endExclusive: tomorrow } = getZonedDayBounds(new Date(), timeZone);
 
       const todayLogs = await MedicationLog.find({
         patientId: patient._id,
@@ -209,6 +224,13 @@ export const getMyPatients = asyncHandler(async (req, res) => {
       const todayMissed = todayLogs.filter((l) => l.status === 'MISSED').length;
       const todayTaken = todayLogs.filter((l) => l.status === 'TAKEN').length;
       const todayTotal = todayLogs.length;
+      const hasAdherenceData = Number.isFinite(adherence.adherencePercentage);
+      const hasActivity = hasAdherenceData || todayTotal > 0;
+      const riskStatus = !hasActivity
+        ? 'NO_DATA'
+        : todayMissed > 0 || (hasAdherenceData && adherence.adherencePercentage < 70)
+          ? 'HIGH_RISK'
+          : 'STABLE';
 
       return {
         connectionId: conn._id,
@@ -224,7 +246,7 @@ export const getMyPatients = asyncHandler(async (req, res) => {
           missed: todayMissed,
           pending: todayTotal - (todayTaken + todayMissed),
         },
-        riskStatus: adherence.adherencePercentage < 70 || todayMissed > 0 ? 'HIGH_RISK' : 'STABLE',
+        riskStatus,
       };
     })
   );
@@ -272,23 +294,24 @@ export const getPatientDashboardForCaretaker = asyncHandler(async (req, res) => 
   if (!connection) {
     throw new ApiError(403, 'You do not have an active caretaker connection with this patient.');
   }
+  if (!connection.permissions?.viewAdherence) {
+    throw new ApiError(403, 'The patient has not granted access to adherence details.');
+  }
 
-  const patient = await User.findById(patientId).select('name email profileImage role createdAt');
+  const patient = await User.findById(patientId).select('name email profileImage role createdAt timeZone');
   if (!patient) throw new ApiError(404, 'Patient not found.');
 
-  await ensureTodayLogsForPatient(patientId);
+  const timeZone = patient.timeZone || 'UTC';
+  await ensureTodayLogsForPatient(patientId, timeZone);
 
   // Fetch patient details
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const { start: today, endExclusive: tomorrow } = getZonedDayBounds(new Date(), timeZone);
 
   const [todaySchedule, monthAdherence, medicines, recentMissedLogs, notifications] = await Promise.all([
     MedicationLog.find({ patientId, scheduledTime: { $gte: today, $lt: tomorrow } })
       .populate('medicineId', 'name dosage unit scheduledTime instructions')
       .sort({ scheduledTime: 1 }),
-    getMonthAdherence(patientId),
+    getMonthAdherence(patientId, timeZone),
     Medicine.find({ patientId, isActive: true }),
     MedicationLog.find({ patientId, status: 'MISSED' })
       .populate('medicineId', 'name dosage unit')
@@ -333,16 +356,19 @@ export const getPatientAdherenceForCaretaker = asyncHandler(async (req, res) => 
   if (!connection) {
     throw new ApiError(403, 'You do not have an active caretaker connection with this patient.');
   }
+  if (!connection.permissions?.viewAdherence) {
+    throw new ApiError(403, 'The patient has not granted access to adherence details.');
+  }
 
-  const monthStart = new Date();
-  monthStart.setDate(monthStart.getDate() - 29);
-  monthStart.setHours(0, 0, 0, 0);
-  const monthEnd = new Date();
+  const patient = await User.findById(patientId).select('timeZone');
+  if (!patient) throw new ApiError(404, 'Patient not found.');
+  const timeZone = patient.timeZone || 'UTC';
+  const monthRange = getRollingDateRange(new Date(), 30, timeZone);
 
   const [month, medicineWise, dailyTrend] = await Promise.all([
-    getMonthAdherence(patientId),
-    getMedicineWiseAdherence(patientId, monthStart, monthEnd),
-    getDailyAdherenceTrend(patientId, 7),
+    getMonthAdherence(patientId, timeZone),
+    getMedicineWiseAdherence(patientId, monthRange.start, monthRange.end),
+    getDailyAdherenceTrend(patientId, 7, timeZone),
   ]);
 
   res.status(200).json({
@@ -352,5 +378,72 @@ export const getPatientAdherenceForCaretaker = asyncHandler(async (req, res) => 
       medicineWise,
       dailyTrend,
     },
+  });
+});
+
+export const updateConnectionPermissions = asyncHandler(async (req, res) => {
+  const connection = await CaretakerConnection.findOne({
+    _id: req.params.id,
+    patientId: req.user._id,
+    status: 'ACCEPTED',
+  });
+
+  if (!connection) {
+    throw new ApiError(404, 'Connection not found or not active.');
+  }
+
+  const { permissions } = req.body || {};
+  if (!permissions || typeof permissions !== 'object' || Array.isArray(permissions)) {
+    throw new ApiError(400, 'permissions object is required.');
+  }
+
+  const allowedFields = ['viewAdherence', 'viewHealthLogs', 'receiveMissedAlerts'];
+  const requestedFields = Object.keys(permissions);
+  if (requestedFields.length === 0 || requestedFields.some((field) => !allowedFields.includes(field))) {
+    throw new ApiError(400, 'Provide one or more supported caretaker permissions.');
+  }
+
+  allowedFields.forEach((field) => {
+    if (Object.prototype.hasOwnProperty.call(permissions, field)) {
+      if (typeof permissions[field] !== 'boolean') {
+        throw new ApiError(400, `${field} must be true or false.`);
+      }
+      connection.permissions[field] = Boolean(permissions[field]);
+    }
+  });
+
+  await connection.save();
+  await logAuditEvent(req.user._id, 'PERMISSIONS_UPDATED', `Updated caretaker permissions for connection ${connection._id}.`);
+
+  res.status(200).json({
+    success: true,
+    message: 'Permissions updated successfully.',
+    data: { connection },
+  });
+});
+
+export const revokeConnection = asyncHandler(async (req, res) => {
+  const connection = await CaretakerConnection.findById(req.params.id);
+
+  if (!connection) {
+    throw new ApiError(404, 'Connection not found.');
+  }
+
+  const isOwner =
+    connection.patientId.toString() === req.user._id.toString() ||
+    connection.caretakerId.toString() === req.user._id.toString();
+
+  if (!isOwner) {
+    throw new ApiError(403, 'You are not allowed to revoke this connection.');
+  }
+
+  connection.status = 'REJECTED';
+  await connection.save();
+  await logAuditEvent(req.user._id, 'CARETAKER_REVOKED', `Revoked connection ${connection._id}.`);
+
+  res.status(200).json({
+    success: true,
+    message: 'Caretaker access revoked.',
+    data: { connection },
   });
 });

@@ -21,6 +21,7 @@ export const Navbar = ({
   onOpenNotifications,
   onTriggerTestAlarm,
   onOpenAuditLogs,
+  onUpdateProfileImage,
 }) => {
   const t = translations[lang] || translations.EN;
 
@@ -222,9 +223,22 @@ export const Navbar = ({
 
               {/* User Profile Badge */}
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.3rem 0.65rem', background: 'rgba(255, 255, 255, 0.05)', borderRadius: '10px', border: '1px solid rgba(255, 255, 255, 0.1)' }}>
-                <div style={{ background: user.role === 'PATIENT' ? 'linear-gradient(135deg, #e50914, #06b6d4)' : 'linear-gradient(135deg, #10b981, #06b6d4)', borderRadius: '50%', width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', color: '#fff', flexShrink: 0 }}>
-                  {user.name ? user.name[0].toUpperCase() : 'U'}
-                </div>
+                <label title="Upload profile picture" style={{ position: 'relative', background: user.role === 'PATIENT' ? 'linear-gradient(135deg, #e50914, #06b6d4)' : 'linear-gradient(135deg, #10b981, #06b6d4)', borderRadius: '50%', width: '28px', height: '28px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '0.75rem', color: '#fff', flexShrink: 0, cursor: 'pointer' }}>
+                  {user.profileImage ? (
+                    <img src={user.profileImage} alt="Profile" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (user.name ? user.name[0].toUpperCase() : 'U')}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    aria-label="Upload profile picture"
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      event.target.value = '';
+                      if (file && onUpdateProfileImage) onUpdateProfileImage(file);
+                    }}
+                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
+                  />
+                </label>
                 <div style={{ lineHeight: 1.1 }}>
                   <div style={{ fontSize: '0.78rem', fontWeight: 800 }}>{user.name}</div>
                   <div style={{ fontSize: '0.65rem', color: user.role === 'PATIENT' ? '#06b6d4' : '#34d399', fontWeight: 700 }}>{user.role}</div>

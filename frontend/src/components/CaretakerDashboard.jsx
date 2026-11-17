@@ -103,6 +103,8 @@ export const CaretakerDashboard = ({
               {patients.map((item) => {
                 const targetPerson = item.patient || item.caretaker || item;
                 const isHighRisk = item.riskStatus === 'HIGH_RISK';
+                const hasAdherenceData = Number.isFinite(item.adherenceMonthPercent);
+                const riskColor = isHighRisk ? '#fb7185' : item.riskStatus === 'NO_DATA' ? '#94a3b8' : '#34d399';
 
                 return (
                   <div
@@ -119,12 +121,12 @@ export const CaretakerDashboard = ({
                   >
                     <div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                        <div className={`pulse-dot ${isHighRisk ? 'pulse-dot-rose' : 'pulse-dot-green'}`} />
+                        <div className={`pulse-dot ${isHighRisk ? 'pulse-dot-rose' : item.riskStatus === 'NO_DATA' ? 'pulse-dot-muted' : 'pulse-dot-green'}`} />
                         <h4 style={{ fontSize: '1.2rem', fontWeight: 800, color: '#f8fafc' }}>
                           {targetPerson.name || 'Connected User'}
                         </h4>
                         {item.riskStatus && (
-                          <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '9999px', background: isHighRisk ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)', color: isHighRisk ? '#fb7185' : '#34d399' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 800, padding: '0.2rem 0.6rem', borderRadius: '9999px', background: isHighRisk ? 'rgba(244, 63, 94, 0.2)' : item.riskStatus === 'NO_DATA' ? 'rgba(148, 163, 184, 0.15)' : 'rgba(16, 185, 129, 0.2)', color: riskColor }}>
                             {item.riskStatus}
                           </span>
                         )}
@@ -134,7 +136,7 @@ export const CaretakerDashboard = ({
                       </p>
                       {item.todaySummary && (
                         <div style={{ display: 'flex', gap: '1.2rem', marginTop: '0.8rem', fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 600 }}>
-                          <span>30-Day Score: <strong style={{ color: (item.adherenceMonthPercent || 0) >= 70 ? '#34d399' : '#fb7185' }}>{item.adherenceMonthPercent || 0}%</strong></span>
+                          <span>30-Day Score: <strong style={{ color: hasAdherenceData ? (item.adherenceMonthPercent >= 70 ? '#34d399' : '#fb7185') : '#94a3b8' }}>{hasAdherenceData ? `${item.adherenceMonthPercent}%` : 'No completed doses'}</strong></span>
                           <span>Today: {item.todaySummary.taken}/{item.todaySummary.total} Doses Logged</span>
                         </div>
                       )}
@@ -174,7 +176,7 @@ export const CaretakerDashboard = ({
                 required
                 value={connectEmail}
                 onChange={(e) => setConnectEmail(e.target.value)}
-                placeholder="user@demo.com"
+                placeholder="caretaker@example.com"
                 style={{ flex: 1, background: 'rgba(255, 255, 255, 0.05)', border: '1px solid rgba(255, 255, 255, 0.12)', color: '#fff', padding: '0.8rem 1.2rem', borderRadius: '12px', outline: 'none' }}
               />
               <button type="submit" className="btn-primary" disabled={loading}>
@@ -314,7 +316,9 @@ export const CaretakerDashboard = ({
                   {t.adherenceScore || '30-Day Adherence Score'}
                 </div>
                 <div style={{ fontSize: '2.2rem', fontWeight: 900, color: '#38bdf8', marginTop: '0.2rem' }}>
-                  {selectedPatientData.summary?.adherenceMonthPercent}%
+                  {Number.isFinite(selectedPatientData.summary?.adherenceMonthPercent)
+                    ? `${selectedPatientData.summary.adherenceMonthPercent}%`
+                    : 'No completed doses'}
                 </div>
               </div>
               <div style={{ background: 'rgba(255, 255, 255, 0.03)', padding: '1.2rem', borderRadius: '14px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>

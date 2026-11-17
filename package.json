@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
+    "build": "npm ci --prefix frontend && npm --prefix frontend run build",
     "start": "node backend/src/server.js",
     "dev": "cd backend && npm run dev",
     "seed": "cd backend && npm run seed"
@@ -19,6 +19,6 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.5.1",
     "morgan": "^1.10.0",
-    "node-cron": "^3.0.3"
+    "node-cron": "^4.6.0"
   }
 }

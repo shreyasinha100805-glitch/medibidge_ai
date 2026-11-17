@@ -19,12 +19,14 @@ import { translations } from './translations';
 import {
   loginUser,
   registerUser,
+  updateProfileImageAPI,
   getTodaySchedule,
   markMedicineTaken,
   markMedicineMissed,
   getAdherenceMetrics,
   getMedicines,
   addMedicine,
+  updateMedicine,
   deleteMedicine,
   askAIAssistant,
   getHealthLogs,
@@ -75,6 +77,7 @@ export function App() {
 
   // Modals state
   const [addMedOpen, setAddMedOpen] = useState(false);
+  const [editingMedicine, setEditingMedicine] = useState(null);
   const [scanModalOpen, setScanModalOpen] = useState(false);
   const [scanMedicineOpen, setScanMedicineOpen] = useState(false);
   const [healthLogOpen, setHealthLogOpen] = useState(false);
@@ -98,6 +101,8 @@ export function App() {
   const [adherence, setAdherence] = useState(null);
   const [medicines, setMedicines] = useState([]);
   const [healthLogs, setHealthLogs] = useState([]);
+  const [dataLoading, setDataLoading] = useState(false);
+  const [dataError, setDataError] = useState('');
 
   // AI state
   const [aiHistory] = useState([]);
@@ -111,6 +116,8 @@ export function App() {
   const fetchUserData = useCallback(async () => {
     if (!user) return;
 
+    setDataLoading(true);
+    setDataError('');
     try {
       // Notifications
       const notifData = await getNotifications();
@@ -118,7 +125,7 @@ export function App() {
       setUnreadNotifsCount(notifData.data.unreadCount || 0);
 
       // Caretaker requests for both roles
-      const reqsData = await getCaretakerRequests().catch(() => ({ data: { connections: [] } }));
+      const reqsData = await getCaretakerRequests();
       setCaretakerRequests(reqsData.data?.connections || []);
 
       if (user.role === 'PATIENT') {
@@ -127,7 +134,7 @@ export function App() {
           getAdherenceMetrics(),
           getMedicines(),
           getHealthLogs(),
-          getMyCaretakers().catch(() => ({ data: { caretakers: [] } })),
+          getMyCaretakers(),
         ]);
         setScheduleSummary(todayData.data.summary);
         setSchedule(todayData.data.schedule);
@@ -136,11 +143,24 @@ export function App() {
         setHealthLogs(logsData.data?.logs || []);
         setPatientCaretakers(caretakersData.data?.caretakers || []);
       } else if (user.role === 'CARETAKER') {
-        const patientsData = await getCaretakerPatients().catch(() => ({ data: { patients: [] } }));
+        const patientsData = await getCaretakerPatients();
         setCaretakerPatients(patientsData.data?.patients || []);
       }
     } catch (err) {
       console.error('Error loading data:', err.message);
+      setDataError(err.message || 'Could not load account data. Please retry.');
+      setNotifications([]);
+      setUnreadNotifsCount(0);
+      setScheduleSummary({ total: 0, taken: 0, missed: 0, pending: 0 });
+      setSchedule([]);
+      setAdherence(null);
+      setMedicines([]);
+      setHealthLogs([]);
+      setPatientCaretakers([]);
+      setCaretakerPatients([]);
+      setCaretakerRequests([]);
+    } finally {
+      setDataLoading(false);
     }
   }, [user]);
 
@@ -188,18 +208,42 @@ export function App() {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('medibridge_user');
     setUser(null);
+    setDataError('');
+    setEditingMedicine(null);
     setActiveTab('home');
     showToast('Logged out safely.', 'info');
   };
 
-  const handleQuickDemoLogin = (email, password) => {
-    handleLogin(email, password).catch((err) => showToast('Login failed: ' + err.message, 'error'));
+  const handleProfileImageUpload = async (file) => {
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      showToast('Choose a JPG, PNG, or WEBP profile image.', 'error');
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      showToast('Profile images must be 512 KB or smaller.', 'error');
+      return;
+    }
+
+    try {
+      const imageData = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = () => reject(new Error('Could not read this image.'));
+        reader.readAsDataURL(file);
+      });
+      const response = await updateProfileImageAPI(imageData);
+      setUser(response.data.user);
+      localStorage.setItem('medibridge_user', JSON.stringify(response.data.user));
+      showToast('Profile picture saved to your account.', 'success');
+    } catch (err) {
+      showToast(err.message || 'Profile picture could not be saved.', 'error');
+    }
   };
 
   // Patient Actions
   const handleMarkTaken = async (medicineId) => {
     await markMedicineTaken(medicineId);
-    showToast('✓ Dose marked as TAKEN (+15 pts)', 'success');
+    showToast('Dose marked as taken.', 'success');
     fetchUserData();
   };
 
@@ -215,12 +259,32 @@ export function App() {
     fetchUserData();
   };
 
-  const handleDeleteMedicine = async (id) => {
-    if (window.confirm('Delete this prescription?')) {
-      await deleteMedicine(id);
-      showToast('Prescription removed.', 'info');
-      fetchUserData();
+  const handleSaveMedicine = async (medData) => {
+    if (editingMedicine) {
+      await updateMedicine(editingMedicine._id, medData);
+      showToast(`${medData.name} updated.`, 'success');
+      setEditingMedicine(null);
+      setAddMedOpen(false);
+      await fetchUserData();
+      return;
     }
+    await handleAddMedicine(medData);
+  };
+
+  const handleOpenAddMedicine = () => {
+    setEditingMedicine(null);
+    setAddMedOpen(true);
+  };
+
+  const handleOpenEditMedicine = (medicine) => {
+    setEditingMedicine(medicine);
+    setAddMedOpen(true);
+  };
+
+  const handleDeleteMedicine = async (id) => {
+    await deleteMedicine(id);
+    showToast('Prescription removed.', 'info');
+    fetchUserData();
   };
 
   const handleSaveHealthLog = async (logData) => {
@@ -272,22 +336,19 @@ export function App() {
 
   // Alarm Trigger & Snooze Logic
   const handleTriggerTestAlarm = () => {
-    const sampleMed = schedule[0]?.medicineId || medicines[0] || {
-      name: 'Amoxicillin 500mg',
-      scheduledTime: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      dosage: 500,
-      unit: 'mg',
-      category: 'Antibiotic',
-      instructions: 'Take 1 capsule after breakfast with full glass of water.',
-    };
-    setActiveAlarmData(sampleMed);
+    const scheduledDose = schedule.find((item) => item.medicineId?._id);
+    if (!scheduledDose) {
+      showToast('Add a scheduled medicine before testing a dose alarm.', 'info');
+      return;
+    }
+    setActiveAlarmData(scheduledDose.medicineId);
   };
 
   const handleTakeMedicineFromAlarm = async (medId) => {
     if (medId) {
       await handleMarkTaken(medId);
     } else {
-      showToast('✓ Dose marked as TAKEN (+15 pts)', 'success');
+      showToast('This alert is not linked to a scheduled dose.', 'error');
     }
     setActiveAlarmData(null);
   };
@@ -323,14 +384,25 @@ export function App() {
         onOpenNotifications={() => setNotifDrawerOpen(true)}
         onTriggerTestAlarm={handleTriggerTestAlarm}
         onOpenAuditLogs={() => setAuditLogOpen(true)}
+        onUpdateProfileImage={handleProfileImageUpload}
       />
 
       {/* Main Content Area */}
       <main style={{ flex: 1 }}>
+        {user && dataLoading && (
+          <div role="status" style={{ maxWidth: '1280px', margin: '1rem auto', padding: '0.75rem 1rem', color: '#cbd5e1' }}>
+            Loading account data…
+          </div>
+        )}
+        {user && dataError && (
+          <div role="alert" style={{ maxWidth: '1280px', margin: '1rem auto', padding: '1rem', display: 'flex', gap: '1rem', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', background: 'rgba(244,63,94,0.12)', border: '1px solid rgba(244,63,94,0.35)', borderRadius: '12px', color: '#fecdd3' }}>
+            <span>Account data could not be loaded: {dataError}</span>
+            <button type="button" onClick={fetchUserData} className="btn-ghost">Retry</button>
+          </div>
+        )}
         {activeTab === 'home' && (
           <Hero
             onOpenAuth={(mode) => { setAuthMode(mode); setAuthModalOpen(true); }}
-            onQuickDemoLogin={handleQuickDemoLogin}
             translations={translations}
             lang={lang}
           />
@@ -345,7 +417,8 @@ export function App() {
             healthLogs={healthLogs}
             onMarkTaken={handleMarkTaken}
             onMarkMissed={handleMarkMissed}
-            onOpenAddMed={() => setAddMedOpen(true)}
+            onOpenAddMed={handleOpenAddMedicine}
+            onEditMed={handleOpenEditMedicine}
             onOpenScanModal={() => setScanModalOpen(true)}
             onOpenScanMedicineModal={() => setScanMedicineOpen(true)}
             onOpenHealthLogModal={() => setHealthLogOpen(true)}
@@ -407,13 +480,13 @@ export function App() {
         setMode={setAuthMode}
         onLogin={handleLogin}
         onRegister={handleRegister}
-        onQuickDemoLogin={handleQuickDemoLogin}
       />
 
       <AddMedicineModal
         isOpen={addMedOpen}
-        onClose={() => setAddMedOpen(false)}
-        onAdd={handleAddMedicine}
+        onClose={() => { setAddMedOpen(false); setEditingMedicine(null); }}
+        onAdd={handleSaveMedicine}
+        initialMedicine={editingMedicine}
       />
 
       <ScanPrescriptionModal

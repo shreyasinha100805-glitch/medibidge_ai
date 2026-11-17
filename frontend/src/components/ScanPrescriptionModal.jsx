@@ -2,6 +2,12 @@ import React, { useState, useRef } from 'react';
 import { IconCamera, IconSparkles, IconCheckCircle } from './Icons';
 import { scanPrescriptionImageAPI } from '../api';
 
+const getLocalDateInput = (value = new Date()) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.valueOf())) return '';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+};
+
 /*
  * ScanPrescriptionModal
  *
@@ -43,7 +49,7 @@ export const ScanPrescriptionModal = ({
 
   const normalizeFrequency = (freq) => {
     const valid = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
-    return valid.includes(freq) ? freq : 'DAILY';
+    return valid.includes(freq) ? freq : '';
   };
 
   const normalizeCategory = (cat) => {
@@ -70,26 +76,6 @@ export const ScanPrescriptionModal = ({
     return null;
   };
 
-  // Keyword pre-filter — obvious non-medical file names are rejected
-  // immediately without touching the backend.
-  const NON_MEDICAL_KEYWORDS = [
-    'selfie', 'portrait', 'face', 'people', 'person', 'baby', 'kid', 'child',
-    'family', 'wedding', 'birthday', 'party', 'friend',
-    'cat', 'dog', 'bird', 'animal', 'pet', 'puppy', 'kitten',
-    'landscape', 'nature', 'beach', 'mountain', 'sky', 'sunset', 'forest',
-    'food', 'meal', 'dinner', 'lunch', 'coffee', 'drink',
-    'screenshot', 'screen', 'desktop', 'wallpaper', 'capture', 'snapshot',
-    'meme', 'avatar', 'profile', 'logo', 'banner', 'icon',
-    'assignment', 'homework', 'exam', 'test', 'code', 'java', 'python',
-    'diagram', 'chart', 'slide', 'presentation', 'pdf', 'doc',
-    'car', 'bike', 'vehicle', 'road', 'shoe', 'chair', 'desk', 'laptop',
-  ];
-
-  const isNonMedicalFileName = (name) => {
-    const lower = (name || '').toLowerCase();
-    return lower.length > 0 && NON_MEDICAL_KEYWORDS.some((kw) => lower.includes(kw));
-  };
-
   /* ── Reset everything — called whenever user picks a new file ───────── */
   const resetScanState = () => {
     setExtractedData(null);
@@ -100,7 +86,7 @@ export const ScanPrescriptionModal = ({
 
   /* ── File selection ─────────────────────────────────────────────────── */
   const handleImageChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     // Wipe ALL previous results immediately — requirement 7 & 8
@@ -109,21 +95,24 @@ export const ScanPrescriptionModal = ({
     setImageBase64(null);
 
     setFileName(file.name || '');
-    setImageMime(file.type || 'image/jpeg');
-
-    // Client-side keyword pre-filter
-    if (isNonMedicalFileName(file.name)) {
-      setError('Invalid Image. Please upload a valid medical prescription or supported medicine label.');
-      // Reset the file input so the same rejected file can be re-detected
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Upload a JPG, PNG, or WEBP image.');
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
     }
+    if (file.size > 7 * 1024 * 1024) {
+      setError('The image is too large. Upload an image under 7 MB.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+    setImageMime(file.type);
 
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagePreview(reader.result);
       setImageBase64(reader.result);
     };
+    reader.onerror = () => setError('Could not read this image. Please choose another file.');
     reader.readAsDataURL(file);
   };
 
@@ -140,7 +129,7 @@ export const ScanPrescriptionModal = ({
       const pres = res?.data?.prescription || res?.prescription;
 
       // ── Validation failed ───────────────────────────────────────────
-      if (!pres || pres.isValidPrescription === false) {
+      if (!pres || pres.isValidPrescription !== true) {
         setError(
           pres?.rejectionReason ||
           'Invalid Image. Please upload a valid medical prescription or supported medicine label.'
@@ -152,20 +141,25 @@ export const ScanPrescriptionModal = ({
       const firstMed       = pres.medicines?.[0] || {};
       const rawTime        = pres.scheduledTime || firstMed.scheduledTime || '';
       const normalizedTime = normalizeScheduledTime(rawTime);
-      const needsTime      = !normalizedTime;
+      const frequency      = normalizeFrequency(pres.frequency || firstMed.frequency || '');
+      const needsTime      = Boolean(frequency && frequency !== 'AS_NEEDED' && !normalizedTime);
 
       setTimeWarning(needsTime);
 
-      // Store results — user must still click Confirm before anything is saved
+      // Store results — user must still review the schedule and click Confirm.
       setExtractedData({
         name:           pres.name || firstMed.name || '',
+        activeIngredient: pres.activeIngredient || firstMed.activeIngredient || '',
         dosage:         pres.dosage || firstMed.dosage || '',
-        unit:           pres.unit  || firstMed.unit  || 'mg',
+        unit:           pres.unit  || firstMed.unit  || '',
         category:       pres.category || 'Other',
         scheduledTime:  normalizedTime || '',
-        frequency:      normalizeFrequency(pres.frequency || firstMed.frequency || 'DAILY'),
+        frequency,
+        duration:       pres.duration || firstMed.duration || '',
+        startDate:      getLocalDateInput(),
+        endDate:        '',
         instructions:   pres.instructions || firstMed.instructions || '',
-        confidenceScore: pres.confidenceScore || firstMed.confidence || 0,
+        confidenceScore: pres.confidenceScore ?? firstMed.confidence ?? null,
         aiModelUsed:    pres.aiModelUsed || 'Gemini Vision',
       });
       setConfirmed(false); // user must explicitly confirm
@@ -184,14 +178,33 @@ export const ScanPrescriptionModal = ({
   const handleConfirmAdd = async () => {
     if (!extractedData || !confirmed || adding) return;
 
-    // Medical safety — time must be set
-    if (!extractedData.scheduledTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime)) {
+    if (!extractedData.frequency) {
+      setError('Select the frequency shown on your prescription.');
+      return;
+    }
+    if (extractedData.frequency !== 'AS_NEEDED' && (!extractedData.scheduledTime || !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime))) {
       setError('Please set a valid scheduled time (HH:MM, 24-hour) before saving. This is required for your medication alarm.');
+      return;
+    }
+    if (extractedData.scheduledTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(extractedData.scheduledTime)) {
+      setError('Please set a valid scheduled time (HH:MM, 24-hour), or clear it for an as-needed medicine.');
       return;
     }
 
     if (!extractedData.name || !extractedData.name.trim()) {
       setError('Medicine name cannot be empty. Please verify the extracted information.');
+      return;
+    }
+    if (!Number.isFinite(Number(extractedData.dosage)) || Number(extractedData.dosage) <= 0) {
+      setError('Enter the dosage amount shown on your prescription.');
+      return;
+    }
+    if (!extractedData.unit) {
+      setError('Select the dosage unit shown on your prescription.');
+      return;
+    }
+    if (!extractedData.startDate || (extractedData.endDate && extractedData.endDate < extractedData.startDate)) {
+      setError('Choose a valid start date and an end date on or after it.');
       return;
     }
 
@@ -201,12 +214,16 @@ export const ScanPrescriptionModal = ({
     try {
       await onAddMedicine({
         name:         extractedData.name.trim(),
-        dosage:       Number(extractedData.dosage) || 1,
-        unit:         extractedData.unit || 'mg',
+        activeIngredient: extractedData.activeIngredient.trim(),
+        dosage:       Number(extractedData.dosage),
+        unit:         extractedData.unit,
         category:     normalizeCategory(extractedData.category),
-        scheduledTime: extractedData.scheduledTime,
-        frequency:    normalizeFrequency(extractedData.frequency),
-        instructions: extractedData.instructions || 'Take as prescribed by your doctor.',
+        ...(extractedData.scheduledTime ? { scheduledTime: extractedData.scheduledTime } : {}),
+        frequency:    extractedData.frequency,
+        duration:     extractedData.duration.trim(),
+        startDate:    extractedData.startDate,
+        endDate:      extractedData.endDate || null,
+        instructions: extractedData.instructions.trim(),
       });
       onClose();
     } catch (err) {
@@ -330,7 +347,7 @@ export const ScanPrescriptionModal = ({
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
 
             {/* Time warning */}
-            {timeWarning && (
+            {timeWarning && extractedData.frequency !== 'AS_NEEDED' && (
               <div style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', color: '#fbbf24', padding: '0.9rem 1rem', borderRadius: '12px', fontSize: '0.85rem' }}>
                 ⚠️ <strong>Action Required:</strong> The prescription time could not be read clearly. Please set the correct scheduled time below before saving.
               </div>
@@ -343,7 +360,9 @@ export const ScanPrescriptionModal = ({
                   ✓ Prescription Extracted ({extractedData.aiModelUsed})
                 </span>
                 <span style={{ fontSize: '0.75rem', background: 'rgba(16,185,129,0.2)', color: '#34d399', padding: '0.2rem 0.6rem', borderRadius: '6px', fontWeight: 700 }}>
-                  {((extractedData.confidenceScore || 0) * 100).toFixed(0)}% Confidence
+                  {Number.isFinite(extractedData.confidenceScore)
+                    ? `${(extractedData.confidenceScore * 100).toFixed(0)}% AI estimate`
+                    : 'Confidence unavailable'}
                 </span>
               </div>
 
@@ -356,6 +375,16 @@ export const ScanPrescriptionModal = ({
                     type="text"
                     value={extractedData.name}
                     onChange={(e) => setExtractedData({ ...extractedData, name: e.target.value })}
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Active Ingredient (if shown)</label>
+                  <input
+                    type="text"
+                    value={extractedData.activeIngredient}
+                    onChange={(e) => setExtractedData({ ...extractedData, activeIngredient: e.target.value })}
                     style={inputStyle}
                   />
                 </div>
@@ -375,6 +404,7 @@ export const ScanPrescriptionModal = ({
                       onChange={(e) => setExtractedData({ ...extractedData, unit: e.target.value })}
                       style={{ ...selectStyle, width: '50%' }}
                     >
+                      <option value="">Select unit</option>
                       <option value="mg">mg</option>
                       <option value="tablet">tablet</option>
                       <option value="ml">ml</option>
@@ -392,9 +422,13 @@ export const ScanPrescriptionModal = ({
                   </label>
                   <input
                     type="time"
-                    required
+                    required={extractedData.frequency !== 'AS_NEEDED'}
                     value={extractedData.scheduledTime}
-                    onChange={(e) => { setExtractedData({ ...extractedData, scheduledTime: e.target.value }); setTimeWarning(false); }}
+                    onChange={(e) => {
+                      const scheduledTime = e.target.value;
+                      setExtractedData({ ...extractedData, scheduledTime });
+                      setTimeWarning(!scheduledTime && extractedData.frequency !== 'AS_NEEDED');
+                    }}
                     style={{ ...inputStyle, borderColor: timeWarning ? 'rgba(245,158,11,0.6)' : 'rgba(255,255,255,0.1)' }}
                   />
                 </div>
@@ -403,15 +437,58 @@ export const ScanPrescriptionModal = ({
                 <div>
                   <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Frequency</label>
                   <select
+                    required
                     value={extractedData.frequency}
-                    onChange={(e) => setExtractedData({ ...extractedData, frequency: e.target.value })}
+                    onChange={(e) => {
+                      const frequency = e.target.value;
+                      setExtractedData({
+                        ...extractedData,
+                        frequency,
+                        ...(frequency === 'AS_NEEDED' ? { scheduledTime: '' } : {}),
+                      });
+                      setTimeWarning(frequency !== 'AS_NEEDED' && !extractedData.scheduledTime);
+                    }}
                     style={selectStyle}
                   >
+                    <option value="">Select frequency</option>
                     <option value="DAILY">Daily</option>
                     <option value="ALTERNATE_DAYS">Alternate Days</option>
                     <option value="WEEKLY">Weekly</option>
                     <option value="AS_NEEDED">As Needed</option>
                   </select>
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Duration (as written)</label>
+                  <input
+                    type="text"
+                    value={extractedData.duration}
+                    onChange={(e) => setExtractedData({ ...extractedData, duration: e.target.value })}
+                    placeholder="Not identified"
+                    style={inputStyle}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule Start Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={extractedData.startDate}
+                    onChange={(e) => setExtractedData({ ...extractedData, startDate: e.target.value })}
+                    style={{ ...inputStyle, colorScheme: 'dark' }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Schedule End Date (optional)</label>
+                  <input
+                    type="date"
+                    min={extractedData.startDate || undefined}
+                    value={extractedData.endDate}
+                    onChange={(e) => setExtractedData({ ...extractedData, endDate: e.target.value })}
+                    style={{ ...inputStyle, colorScheme: 'dark' }}
+                  />
                 </div>
 
                 {/* Category */}
@@ -434,7 +511,7 @@ export const ScanPrescriptionModal = ({
 
               {/* Instructions */}
               <div style={{ marginTop: '0.8rem' }}>
-                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Instructions</label>
+                <label style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700, textTransform: 'uppercase' }}>Prescription instructions (as written)</label>
                 <input
                   type="text"
                   value={extractedData.instructions}

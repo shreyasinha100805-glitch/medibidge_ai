@@ -26,6 +26,11 @@ import Notification from '../models/Notification.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
+if (process.env.NODE_ENV === 'production' || process.env.ALLOW_DEMO_SEED !== 'true') {
+  console.error('Demo seeding is disabled. Use a disposable non-production database and set ALLOW_DEMO_SEED=true.');
+  process.exit(1);
+}
+
 // ---- helpers ----------------------------------------------------------
 
 /** Combine a JS Date (day) with an "HH:mm" scheduledTime string */

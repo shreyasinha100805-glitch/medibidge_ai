@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { normalizeTimeZone } from '../utils/timeZone.js';
 
 const userSchema = new mongoose.Schema(
   {
@@ -28,9 +29,18 @@ const userSchema = new mongoose.Schema(
       enum: ['PATIENT', 'CARETAKER'],
       required: [true, 'Role is required'],
     },
+    timeZone: {
+      type: String,
+      default: 'UTC',
+      validate: {
+        validator: (value) => normalizeTimeZone(value) !== null,
+        message: 'Please provide a valid IANA time zone.',
+      },
+    },
     profileImage: {
       type: String,
       default: '',
+      maxlength: 700000,
     },
   },
   { timestamps: true } // adds createdAt / updatedAt

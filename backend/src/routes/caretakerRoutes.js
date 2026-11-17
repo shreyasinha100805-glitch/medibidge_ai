@@ -7,6 +7,8 @@ import {
   getMyCaretakers,
   getPatientDashboardForCaretaker,
   getPatientAdherenceForCaretaker,
+  updateConnectionPermissions,
+  revokeConnection,
 } from '../controllers/caretakerController.js';
 import { protect, authorize } from '../middleware/authMiddleware.js';
 
@@ -23,5 +25,7 @@ router.get('/caretakers', authorize('PATIENT'), getMyCaretakers);
 
 router.get('/patients/:patientId/dashboard', authorize('CARETAKER'), getPatientDashboardForCaretaker);
 router.get('/patients/:patientId/adherence', authorize('CARETAKER'), getPatientAdherenceForCaretaker);
+router.patch('/connections/:id/permissions', authorize('PATIENT'), updateConnectionPermissions);
+router.delete('/connections/:id', revokeConnection);
 
 export default router;

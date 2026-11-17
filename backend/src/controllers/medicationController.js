@@ -11,17 +11,15 @@ import {
   getMedicineWiseAdherence,
   getDailyAdherenceTrend,
 } from '../services/adherenceService.js';
+import { getRollingDateRange, getZonedDayBounds } from '../utils/timeZone.js';
 
 export const markTaken = asyncHandler(async (req, res) => {
   const medicine = await Medicine.findOne({ _id: req.params.id, patientId: req.user._id });
   if (!medicine) throw new ApiError(404, 'Medicine not found.');
 
-  await ensureTodayLogsForPatient(req.user._id);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const timeZone = req.user.timeZone || 'UTC';
+  await ensureTodayLogsForPatient(req.user._id, timeZone);
+  const { start: today, endExclusive: tomorrow } = getZonedDayBounds(new Date(), timeZone);
 
   const log = await MedicationLog.findOne({
     medicineId: medicine._id,
@@ -44,7 +42,12 @@ export const markTaken = asyncHandler(async (req, res) => {
   log.missedAt = null;
   await log.save();
 
-  await notifyTaken({ patientId: req.user._id, medicineName: medicine.name, takenAt: log.takenAt });
+  await notifyTaken({
+    patientId: req.user._id,
+    medicineName: medicine.name,
+    takenAt: log.takenAt,
+    timeZone,
+  });
 
   res.status(200).json({
     success: true,
@@ -57,39 +60,40 @@ export const markMissed = asyncHandler(async (req, res) => {
   const medicine = await Medicine.findOne({ _id: req.params.id, patientId: req.user._id });
   if (!medicine) throw new ApiError(404, 'Medicine not found.');
 
-  await ensureTodayLogsForPatient(req.user._id);
+  const timeZone = req.user.timeZone || 'UTC';
+  await ensureTodayLogsForPatient(req.user._id, timeZone);
+  const { start: today, endExclusive: tomorrow } = getZonedDayBounds(new Date(), timeZone);
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-
-  const log = await MedicationLog.findOne({
+  const scheduleFilter = {
     medicineId: medicine._id,
     patientId: req.user._id,
     scheduledTime: { $gte: today, $lt: tomorrow },
-  });
+  };
+  const log = await MedicationLog.findOneAndUpdate(
+    { ...scheduleFilter, status: { $ne: 'MISSED' } },
+    { $set: { status: 'MISSED', missedAt: new Date(), takenAt: null } },
+    { new: true }
+  );
 
-  if (!log) throw new ApiError(404, "Today's schedule for this medicine was not found.");
+  if (!log) {
+    const currentLog = await MedicationLog.findOne(scheduleFilter);
+    if (!currentLog) throw new ApiError(404, "Today's schedule for this medicine was not found.");
 
-  if (log.status === 'MISSED') {
     return res.status(200).json({
       success: true,
-      message: 'Already marked as missed.',
-      data: { log },
+      message: currentLog.status === 'MISSED'
+        ? 'Already marked as missed.'
+        : 'The dose status changed before it could be marked as missed.',
+      data: { log: currentLog },
     });
   }
-
-  log.status = 'MISSED';
-  log.missedAt = new Date();
-  log.takenAt = null;
-  await log.save();
 
   await notifyMissedDose({
     patientId: req.user._id,
     patientName: req.user.name,
     medicineName: medicine.name,
     scheduledTime: log.scheduledTime,
+    timeZone,
   });
 
   res.status(200).json({
@@ -100,12 +104,9 @@ export const markMissed = asyncHandler(async (req, res) => {
 });
 
 export const getToday = asyncHandler(async (req, res) => {
-  await ensureTodayLogsForPatient(req.user._id);
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const timeZone = req.user.timeZone || 'UTC';
+  await ensureTodayLogsForPatient(req.user._id, timeZone);
+  const { start: today, endExclusive: tomorrow } = getZonedDayBounds(new Date(), timeZone);
 
   const logs = await MedicationLog.find({
     patientId: req.user._id,
@@ -162,19 +163,15 @@ export const getHistory = asyncHandler(async (req, res) => {
 
 export const getAdherence = asyncHandler(async (req, res) => {
   const patientId = req.user._id;
-
-  const monthStart = new Date();
-  monthStart.setDate(monthStart.getDate() - 29);
-  monthStart.setHours(0, 0, 0, 0);
-  const monthEnd = new Date();
-  monthEnd.setHours(23, 59, 59, 999);
+  const timeZone = req.user.timeZone || 'UTC';
+  const monthRange = getRollingDateRange(new Date(), 30, timeZone);
 
   const [today, week, month, medicineWise, dailyTrend] = await Promise.all([
-    getTodayAdherence(patientId),
-    getWeekAdherence(patientId),
-    getMonthAdherence(patientId),
-    getMedicineWiseAdherence(patientId, monthStart, monthEnd),
-    getDailyAdherenceTrend(patientId, 7),
+    getTodayAdherence(patientId, timeZone),
+    getWeekAdherence(patientId, timeZone),
+    getMonthAdherence(patientId, timeZone),
+    getMedicineWiseAdherence(patientId, monthRange.start, monthRange.end),
+    getDailyAdherenceTrend(patientId, 7, timeZone),
   ]);
 
   res.status(200).json({

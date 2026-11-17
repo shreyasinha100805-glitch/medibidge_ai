@@ -7,7 +7,9 @@ import ApiError from '../utils/ApiError.js';
  */
 // eslint-disable-next-line no-unused-vars
 export const errorHandler = (err, req, res, next) => {
-  let statusCode = err.statusCode || 500;
+  if (res.headersSent) return next(err);
+
+  let statusCode = err.statusCode || err.status || 500;
   let message = err.message || 'Internal Server Error';
 
   // Mongoose validation error
@@ -32,12 +34,22 @@ export const errorHandler = (err, req, res, next) => {
   }
 
   if (process.env.NODE_ENV !== 'production') {
-    console.error(err);
+    console.error('API request failed.', {
+      errorType: err.name || 'Error',
+      statusCode,
+    });
   }
+
+  const publicMessage =
+    process.env.NODE_ENV === 'production' &&
+    statusCode >= 500 &&
+    !(err instanceof ApiError)
+      ? 'Internal Server Error'
+      : message;
 
   res.status(statusCode).json({
     success: false,
-    message,
+    message: publicMessage,
   });
 };
 

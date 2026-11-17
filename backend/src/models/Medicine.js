@@ -12,6 +12,12 @@ const medicineSchema = new mongoose.Schema(
       required: [true, 'Medicine name is required'],
       trim: true,
     },
+    activeIngredient: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 100,
+    },
     dosage: {
       type: Number,
       required: [true, 'Dosage is required'],
@@ -29,7 +35,7 @@ const medicineSchema = new mongoose.Schema(
     // Time of day the medicine is scheduled, stored as "HH:mm" (24h)
     scheduledTime: {
       type: String,
-      required: [true, 'Scheduled time is required'],
+      required: [function requiredScheduledTime() { return this.frequency !== 'AS_NEEDED'; }, 'Scheduled time is required for scheduled medicines'],
       match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'scheduledTime must be in HH:mm format'],
     },
     frequency: {
@@ -45,6 +51,12 @@ const medicineSchema = new mongoose.Schema(
     endDate: {
       type: Date,
       default: null, // null = ongoing / no end date
+    },
+    duration: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: 100,
     },
     instructions: {
       type: String,

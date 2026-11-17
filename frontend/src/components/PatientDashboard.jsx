@@ -7,7 +7,6 @@ import {
   IconPlus,
   IconTrash,
   IconRefresh,
-  IconCamera,
 } from './Icons';
 
 import { DailyTrendBarChart } from './Charts';
@@ -31,6 +30,7 @@ export const PatientDashboard = ({
   onExplainHealthStatus,
   onOpenCaretakerPortal,
   onDeleteMed,
+  onEditMed,
   onRefresh,
   onBack,
   onTriggerTestAlarm,
@@ -45,31 +45,35 @@ export const PatientDashboard = ({
   const [filterCategory, setFilterCategory] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const todayAdherence = adherence?.today?.adherencePercentage || 0;
-  const monthAdherence = adherence?.month?.adherencePercentage || 0;
+  const todayAdherence = adherence?.today?.adherencePercentage ?? null;
+  const monthAdherence = adherence?.month?.adherencePercentage ?? null;
 
   // AI Health Status Logic
-  const latestLog = healthLogs[0] || { systolicBP: 120, diastolicBP: 80, bloodSugar: 105, symptoms: [] };
-  const hasSevereBP = latestLog.systolicBP >= 140 || latestLog.diastolicBP >= 90;
-  const hasSevereSugar = latestLog.bloodSugar > 180;
-  const hasSevereSymptoms = (latestLog.symptoms || []).some(s => ['Chest Discomfort', 'Shortness of Breath', 'Dizziness'].includes(s));
+  const latestLog = healthLogs[0] || null;
+  const hasSevereBP = Boolean(latestLog && (latestLog.systolicBP >= 140 || latestLog.diastolicBP >= 90));
+  const hasSevereSugar = Boolean(latestLog && latestLog.bloodSugar > 180);
+  const hasSevereSymptoms = (latestLog?.symptoms || []).some(s => ['Chest Discomfort', 'Shortness of Breath', 'Dizziness'].includes(s));
   const missedCount = scheduleSummary.missed || 0;
 
-  let healthStatus = 'STABLE';
-  let healthStatusLabel = '🟢 Stable';
-  let healthStatusColor = '#34d399';
-  let healthReasoning = 'Your reported blood pressure, glucose levels, and adherence rate are within target ranges.';
+  let healthStatus = latestLog ? 'STABLE' : 'NO_DATA';
+  let healthStatusLabel = latestLog ? 'Recorded' : 'No health data';
+  let healthStatusColor = latestLog ? '#34d399' : '#94a3b8';
+  let healthReasoning = latestLog
+    ? 'This status reflects the latest health log entered in MediBridge.'
+    : 'No health readings have been recorded yet.';
 
-  if (hasSevereBP || hasSevereSugar || hasSevereSymptoms || missedCount >= 2) {
+  if (hasSevereBP || hasSevereSugar || hasSevereSymptoms) {
     healthStatus = 'URGENT';
     healthStatusLabel = '🔴 Urgent Attention Needed';
     healthStatusColor = '#ff4b5c';
-    healthReasoning = `Reported elevated readings (BP ${latestLog.systolicBP}/${latestLog.diastolicBP}, Glucose ${latestLog.bloodSugar} mg/dL) or symptoms (${latestLog.symptoms.join(', ') || 'Missed Doses'}).`;
-  } else if (monthAdherence < 80 || missedCount >= 1 || latestLog.systolicBP >= 130) {
+    healthReasoning = `A recorded reading or symptom crossed an attention threshold (BP ${latestLog.systolicBP ?? '—'}/${latestLog.diastolicBP ?? '—'}, glucose ${latestLog.bloodSugar ?? '—'}). This is not a diagnosis.`;
+  } else if ((latestLog && (monthAdherence !== null && monthAdherence < 80 || latestLog.systolicBP >= 130)) || missedCount >= 1) {
     healthStatus = 'ATTENTION';
     healthStatusLabel = '🟡 Needs Attention';
     healthStatusColor = '#fbbf24';
-    healthReasoning = 'Slight dose delay or mild symptoms recorded. Keep monitoring routine.';
+    healthReasoning = missedCount >= 1
+      ? `${missedCount} scheduled dose(s) are marked missed today.`
+      : 'A recorded reading crossed an attention threshold. Contact a clinician for medical interpretation.';
   }
 
   const handleEnableAlarmsToggle = async () => {
@@ -90,7 +94,9 @@ export const PatientDashboard = ({
   // Calculate SVG Ring Dash Offset
   const ringRadius = 40;
   const ringCircumference = 2 * Math.PI * ringRadius;
-  const ringOffset = ringCircumference - (monthAdherence / 100) * ringCircumference;
+  const ringOffset = monthAdherence === null
+    ? ringCircumference
+    : ringCircumference - (monthAdherence / 100) * ringCircumference;
 
   // Rail item transformers
   const railScheduleItems = schedule.map(s => {
@@ -98,11 +104,11 @@ export const PatientDashboard = ({
     return {
       _id: med._id || s._id,
       name: med.name || 'Medication',
-      dosage: `${med.dosage || ''} ${med.unit || ''}`.trim() || '1 Dose',
-      time: med.scheduledTime || 'Today',
+      dosage: med.dosage !== undefined && med.dosage !== null ? `${med.dosage} ${med.unit || ''}`.trim() : 'Dose details unavailable',
+      time: med.scheduledTime || 'Time not set',
       status: s.status,
       category: med.category || 'REGULAR',
-      instructions: med.instructions || 'Take with water',
+      instructions: med.instructions || '',
       taken: s.status === 'TAKEN'
     };
   });
@@ -281,22 +287,22 @@ export const PatientDashboard = ({
                 r={ringRadius}
                 strokeWidth="8"
                 fill="transparent"
-                stroke={monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#e50914'}
+                stroke={monthAdherence === null ? '#64748b' : monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#e50914'}
                 className="ring-circle-val"
                 style={{ strokeDasharray: ringCircumference, strokeDashoffset: ringOffset }}
               />
             </svg>
             <div style={{ position: 'absolute', textAlign: 'center' }}>
-              <span style={{ fontSize: '1.4rem', fontWeight: 900 }}>{monthAdherence}%</span>
+              <span style={{ fontSize: '1.4rem', fontWeight: 900 }}>{monthAdherence === null ? '—' : `${monthAdherence}%`}</span>
             </div>
           </div>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>30-Day Adherence</p>
-            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.2rem', color: monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#ff4b5c' }}>
-              {monthAdherence >= 80 ? 'Excellent' : monthAdherence >= 60 ? 'Moderate' : 'Action Needed'}
+            <h4 style={{ fontSize: '1.2rem', fontWeight: 800, marginTop: '0.2rem', color: monthAdherence === null ? '#94a3b8' : monthAdherence >= 80 ? '#34d399' : monthAdherence >= 60 ? '#fbbf24' : '#ff4b5c' }}>
+              {monthAdherence === null ? 'No completed doses' : monthAdherence >= 80 ? 'Excellent' : monthAdherence >= 60 ? 'Moderate' : 'Action Needed'}
             </h4>
             <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.2rem' }}>
-              {adherence?.month?.taken || 0} taken / {adherence?.month?.missed || 0} missed
+              {adherence?.month ? `${adherence.month.taken} taken / ${adherence.month.missed} missed` : 'No monthly report data'}
             </p>
           </div>
         </div>
@@ -306,10 +312,12 @@ export const PatientDashboard = ({
           <div>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Today's Doses</p>
             <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem' }} className="gradient-text-netflix">
-              {scheduleSummary.taken} / {scheduleSummary.total}
+              {scheduleSummary.total > 0 ? `${scheduleSummary.taken} / ${scheduleSummary.total}` : '—'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: '#34d399', marginTop: '0.2rem', fontWeight: 700 }}>
-              {todayAdherence}% completed today
+              {scheduleSummary.total > 0
+                ? `${todayAdherence === null ? 'No completed doses' : `${todayAdherence}% completed today`}`
+                : 'No doses scheduled today'}
             </p>
           </div>
           <div style={{ background: 'rgba(229, 9, 20, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(229, 9, 20, 0.3)', flexShrink: 0 }}>
@@ -321,11 +329,11 @@ export const PatientDashboard = ({
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div>
             <p style={{ color: '#94a3b8', fontSize: '0.8rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Pending Alarms</p>
-            <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem', color: scheduleSummary.pending > 0 ? '#fbbf24' : '#34d399' }}>
-              {scheduleSummary.pending}
+            <h3 style={{ fontSize: '2.4rem', fontWeight: 900, marginTop: '0.2rem', color: scheduleSummary.total > 0 && scheduleSummary.pending > 0 ? '#fbbf24' : '#94a3b8' }}>
+              {scheduleSummary.total > 0 ? scheduleSummary.pending : '—'}
             </h3>
             <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.2rem', fontWeight: 600 }}>
-              {scheduleSummary.pending > 0 ? 'Requires attention today' : 'All clear for now'}
+              {scheduleSummary.total === 0 ? 'No doses scheduled today' : scheduleSummary.pending > 0 ? 'Requires attention today' : 'No pending doses'}
             </p>
           </div>
           <div style={{ background: 'rgba(245, 158, 11, 0.15)', width: '56px', height: '56px', borderRadius: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid rgba(245, 158, 11, 0.3)', flexShrink: 0 }}>
@@ -342,7 +350,7 @@ export const PatientDashboard = ({
           subtitle="Horizontal scrollable medication posters with 1-click dose tracking and alarm preview"
           items={railScheduleItems}
           onMarkTaken={onMarkTaken}
-          onPlaySound={(item) => playSoundTone(selectedSound, 0.8)}
+          onPlaySound={() => playSoundTone(selectedSound, 0.8)}
         />
       )}
 
@@ -456,7 +464,7 @@ export const PatientDashboard = ({
                       }}
                     >
                       <IconCheckCircle className="w-4 h-4" color="#ffffff" />
-                      {isTaken ? 'Dose Taken' : 'Mark Taken (+15 pts)'}
+                      {isTaken ? 'Dose Taken' : 'Mark Taken'}
                     </button>
 
                     <button
@@ -488,27 +496,32 @@ export const PatientDashboard = ({
           <div className="glass-panel" style={{ padding: '2rem' }}>
             <h3 style={{ fontSize: '1.35rem', fontWeight: 800, marginBottom: '1.2rem', color: '#f8fafc' }}>Prescription Adherence Breakdown</h3>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '1.4rem' }}>
-              {(adherence?.medicineWise || []).map((med) => (
-                <div key={med.medicineId || med.name}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>
-                    <span>{med.name}</span>
-                    <span style={{ color: med.adherencePercentage >= 70 ? '#34d399' : '#fb7185' }}>
-                      {med.adherencePercentage}% ({med.taken}/{med.taken + med.missed} doses)
-                    </span>
+              {(adherence?.medicineWise || []).map((med) => {
+                const hasAdherenceData = Number.isFinite(med.adherencePercentage);
+                const percentage = hasAdherenceData ? med.adherencePercentage : 0;
+
+                return (
+                  <div key={med.medicineId || med.name}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', fontWeight: 700, marginBottom: '0.4rem' }}>
+                      <span>{med.name}</span>
+                      <span style={{ color: hasAdherenceData ? (med.adherencePercentage >= 70 ? '#34d399' : '#fb7185') : '#94a3b8' }}>
+                        {hasAdherenceData ? `${med.adherencePercentage}%` : 'No completed doses'} ({med.taken}/{med.taken + med.missed} doses)
+                      </span>
+                    </div>
+                    <div style={{ background: 'rgba(255, 255, 255, 0.08)', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
+                      <div
+                        style={{
+                          width: `${percentage}%`,
+                          height: '100%',
+                          background: percentage >= 80 ? 'linear-gradient(90deg, #10b981, #34d399)' : percentage >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #e50914, #ff4b5c)',
+                          borderRadius: '5px',
+                          transition: 'width 0.6s ease',
+                        }}
+                      />
+                    </div>
                   </div>
-                  <div style={{ background: 'rgba(255, 255, 255, 0.08)', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
-                    <div
-                      style={{
-                        width: `${med.adherencePercentage}%`,
-                        height: '100%',
-                        background: med.adherencePercentage >= 80 ? 'linear-gradient(90deg, #10b981, #34d399)' : med.adherencePercentage >= 60 ? 'linear-gradient(90deg, #f59e0b, #fbbf24)' : 'linear-gradient(90deg, #e50914, #ff4b5c)',
-                        borderRadius: '5px',
-                        transition: 'width 0.6s ease',
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
@@ -527,12 +540,15 @@ export const PatientDashboard = ({
                   <div>
                     <div style={{ fontWeight: 800, fontSize: '1rem', color: '#f8fafc' }}>{m.name}</div>
                     <div style={{ fontSize: '0.8rem', color: '#94a3b8' }}>
-                      {m.dosage} {m.unit} • Daily at {m.scheduledTime} ({m.category})
+                      {m.dosage} {m.unit} | {({ DAILY: 'Daily', ALTERNATE_DAYS: 'Alternate days', WEEKLY: 'Weekly', AS_NEEDED: 'As needed' })[m.frequency] || 'Frequency unavailable'} {m.scheduledTime ? `at ${m.scheduledTime}` : ''} ({m.category})
                     </div>
                   </div>
+                  <button onClick={() => onEditMed(m)} className="btn-ghost" style={{ padding: '0.4rem 0.7rem', borderRadius: '8px', fontSize: '0.78rem', fontWeight: 700 }}>
+                    Edit
+                  </button>
                   <button
                     onClick={() => {
-                      if (window.confirm(`Remove "${m.name}" from your prescriptions? This will delete all associated dose logs and cannot be undone.`)) {
+                      if (window.confirm(`Remove "${m.name}" from your prescriptions? Existing dose history is retained.`)) {
                         onDeleteMed(m._id);
                       }
                     }}
