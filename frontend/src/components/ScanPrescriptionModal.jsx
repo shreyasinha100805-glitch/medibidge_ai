@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { IconCamera, IconSparkles, IconCheckCircle } from './Icons';
+import { CameraCapture } from './CameraCapture';
 import { scanPrescriptionImageAPI } from '../api';
 
 const getLocalDateInput = (value = new Date()) => {
@@ -162,6 +163,16 @@ export const ScanPrescriptionModal = ({
     };
     reader.onerror = () => setError('Could not read this image. Please choose another file.');
     reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = ({ dataUrl, mimeType, fileName: capturedFileName }) => {
+    if (scanInFlightRef.current) return;
+    resetScanState();
+    setImagePreview(dataUrl);
+    setImageBase64(dataUrl);
+    setImageMime(mimeType);
+    setFileName(capturedFileName);
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   /* ── Trigger AI scan ────────────────────────────────────────────────── */
@@ -388,6 +399,8 @@ export const ScanPrescriptionModal = ({
                 style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }}
               />
             </div>
+
+            {!imagePreview && <CameraCapture onCapture={handleCameraCapture} disabled={scanning || adding} />}
 
             {imagePreview && !scanning && (
               <button

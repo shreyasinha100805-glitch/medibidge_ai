@@ -1,5 +1,7 @@
 ﻿import React, { useState } from 'react';
 import { IconCamera, IconSparkles, IconXCircle } from './Icons';
+import { CameraCapture } from './CameraCapture';
+import { useRef } from 'react';
 import { scanPrescriptionImageAPI } from '../api';
 
 const unavailable = 'Not identified';
@@ -13,6 +15,7 @@ export const ScanMedicineModal = ({ isOpen, onClose, lang = 'EN', translations =
   const [scanning, setScanning] = useState(false);
   const [medicineData, setMedicineData] = useState(null);
   const [rejectionMessage, setRejectionMessage] = useState('');
+  const fileInputRef = useRef(null);
 
   if (!isOpen) return null;
 
@@ -23,6 +26,7 @@ export const ScanMedicineModal = ({ isOpen, onClose, lang = 'EN', translations =
     setFileName('');
     setMedicineData(null);
     setRejectionMessage('');
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleClose = () => {
@@ -54,6 +58,14 @@ export const ScanMedicineModal = ({ isOpen, onClose, lang = 'EN', translations =
     };
     reader.onerror = () => setRejectionMessage('Could not read this image. Please choose another file.');
     reader.readAsDataURL(file);
+  };
+
+  const handleCameraCapture = ({ dataUrl, mimeType, fileName: capturedFileName }) => {
+    reset();
+    setImagePreview(dataUrl);
+    setImageBase64(dataUrl);
+    setImageMime(mimeType);
+    setFileName(capturedFileName);
   };
 
   const handleStartScan = async () => {
@@ -139,8 +151,15 @@ export const ScanMedicineModal = ({ isOpen, onClose, lang = 'EN', translations =
                   <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.3rem' }}>JPG, PNG, or WEBP; 7 MB maximum</p>
                 </div>
               )}
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} aria-label="Choose medicine image" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
+              <input ref={fileInputRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={handleImageChange} aria-label="Choose medicine image" style={{ position: 'absolute', inset: 0, opacity: 0, cursor: 'pointer' }} />
             </div>
+
+            {!imagePreview && <CameraCapture onCapture={handleCameraCapture} disabled={scanning} />}
+            {imagePreview && (
+              <button type="button" onClick={reset} className="btn-ghost" style={{ alignSelf: 'center', justifyContent: 'center' }}>
+                Choose another image
+              </button>
+            )}
 
             {imagePreview && (
               <button type="button" onClick={handleStartScan} disabled={scanning} className="btn-primary" style={{ width: '100%', justifyContent: 'center', padding: '1rem' }}>
