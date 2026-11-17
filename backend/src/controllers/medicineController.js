@@ -7,7 +7,7 @@ const VALID_CATEGORIES = ['Vitamin', 'Antibiotic', 'Painkiller', 'Chronic', 'Sup
 const VALID_FREQUENCIES = ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'];
 const TIME_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/;
 
-function validateMedicinePayload(body, { partial = false } = {}) {
+export function validateMedicinePayload(body, { partial = false } = {}) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) {
     throw new ApiError(400, 'A medicine details object is required.');
   }
@@ -82,22 +82,58 @@ export const createMedicine = asyncHandler(async (req, res) => {
   const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {};
   validateMedicinePayload(body);
 
-  const { name, activeIngredient, dosage, unit, category, scheduledTime, frequency, startDate, endDate, duration, instructions } = body;
+  const idempotencyKey = req.get?.('Idempotency-Key') || req.headers?.['idempotency-key'];
+  if (idempotencyKey !== undefined && (
+    typeof idempotencyKey !== 'string' ||
+    !/^[A-Za-z0-9._:-]{8,128}$/.test(idempotencyKey)
+  )) {
+    throw new ApiError(400, 'Idempotency-Key must be 8 to 128 safe characters.');
+  }
 
-  const medicine = await Medicine.create({
-    patientId: req.user._id,
-    name: name.trim(),
-    activeIngredient: activeIngredient?.trim() || '',
-    dosage: Number(dosage),
-    unit,
-    category,
-    scheduledTime,
-    frequency,
-    startDate: startDate || Date.now(),
-    endDate: endDate || null,
-    duration: duration?.trim() || '',
-    instructions: instructions?.trim() || '',
+  const { name, activeIngredient, dosage, unit, category, scheduledTime, frequency, startDate, endDate, duration, instructions } = body;
+  const patientId = req.user._id;
+
+  const sendIdempotentReplay = (medicine) => res.status(200).json({
+    success: true,
+    message: 'Medicine was already saved for this request.',
+    data: { medicine, idempotentReplay: true },
   });
+
+  if (idempotencyKey) {
+    const existingMedicine = await Medicine.findOne({ patientId, idempotencyKey });
+    if (existingMedicine) {
+      sendIdempotentReplay(existingMedicine);
+      return;
+    }
+  }
+
+  let medicine;
+  try {
+    medicine = await Medicine.create({
+      patientId,
+      name: name.trim(),
+      activeIngredient: activeIngredient?.trim() || '',
+      dosage: Number(dosage),
+      unit,
+      category,
+      scheduledTime,
+      frequency,
+      startDate: startDate || Date.now(),
+      endDate: endDate || null,
+      duration: duration?.trim() || '',
+      instructions: instructions?.trim() || '',
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    });
+  } catch (error) {
+    if (error.code === 11000 && idempotencyKey) {
+      const existingMedicine = await Medicine.findOne({ patientId, idempotencyKey });
+      if (existingMedicine) {
+        sendIdempotentReplay(existingMedicine);
+        return;
+      }
+    }
+    throw error;
+  }
 
   res.status(201).json({
     success: true,

@@ -79,6 +79,15 @@ test('does not generate scheduled doses for as-needed or inactive medicines', ()
   assert.equal(isMedicineActiveOn(inactive, '2026-11-17', 'Asia/Kolkata'), false);
 });
 
+test('does not generate scheduled doses when a medicine has no confirmed frequency', () => {
+  const unconfirmed = {
+    isActive: true,
+    startDate: new Date('2026-11-18T00:00:00.000Z'),
+    scheduledTime: '08:00',
+  };
+  assert.equal(isMedicineActiveOn(unconfirmed, '2026-11-18', 'UTC'), false);
+});
+
 test('rejects invalid time zones and falls back when resolving timestamps', () => {
   assert.equal(normalizeTimeZone('Not/A_Time_Zone'), null);
   assert.equal(getCalendarDateKey(new Date('2026-11-17T00:00:00.000Z'), 'Not/A_Time_Zone'), '2026-11-17');

@@ -253,8 +253,8 @@ export function App() {
     fetchUserData();
   };
 
-  const handleAddMedicine = async (medData) => {
-    await addMedicine(medData);
+  const handleAddMedicine = async (medData, options = {}) => {
+    await addMedicine(medData, options);
     showToast(`✓ Prescription ${medData.name} added to schedule!`, 'success');
     fetchUserData();
   };

@@ -41,7 +41,7 @@ const medicineSchema = new mongoose.Schema(
     frequency: {
       type: String,
       enum: ['DAILY', 'ALTERNATE_DAYS', 'WEEKLY', 'AS_NEEDED'],
-      default: 'DAILY',
+      required: true,
     },
     startDate: {
       type: Date,
@@ -63,6 +63,12 @@ const medicineSchema = new mongoose.Schema(
       default: '',
       maxlength: 500,
     },
+    idempotencyKey: {
+      type: String,
+      trim: true,
+      maxlength: 128,
+      select: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -73,5 +79,12 @@ const medicineSchema = new mongoose.Schema(
 
 medicineSchema.index({ patientId: 1, isActive: 1 });
 medicineSchema.index({ patientId: 1, scheduledTime: 1 });
+medicineSchema.index(
+  { patientId: 1, idempotencyKey: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { idempotencyKey: { $type: 'string' } },
+  }
+);
 
 export default mongoose.model('Medicine', medicineSchema);

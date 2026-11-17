@@ -61,7 +61,7 @@ export const scanPrescription = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Please provide a prescription image (base64).');
   }
 
-  const result = await scanPrescriptionImage(imageBase64, mimeType || 'image/jpeg', fileName || '');
+  const result = await scanPrescriptionImage(imageBase64, mimeType, fileName || '');
 
   if (result.isValidPrescription === false) {
     throw new ApiError(400, result.rejectionReason || 'The uploaded photo does not contain a valid doctor prescription or pill label.');

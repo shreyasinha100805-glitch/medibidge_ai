@@ -24,3 +24,17 @@ test('scheduled medicines require a valid reminder time', () => {
   medicine.scheduledTime = '08:30';
   assert.equal(medicine.validateSync(), undefined);
 });
+
+test('medicine model requires the patient-confirmed frequency', () => {
+  const medicine = baseMedicine(undefined);
+  assert.ok(medicine.validateSync()?.errors.frequency);
+});
+
+test('scanner idempotency keys are unique per patient only when present', () => {
+  const idempotencyIndex = Medicine.schema.indexes().find(([keys]) => keys.idempotencyKey === 1);
+  assert.ok(idempotencyIndex);
+  assert.equal(idempotencyIndex[1].unique, true);
+  assert.deepEqual(idempotencyIndex[1].partialFilterExpression, {
+    idempotencyKey: { $type: 'string' },
+  });
+});

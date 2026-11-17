@@ -14,7 +14,7 @@ import { getRollingDateRange } from '../utils/timeZone.js';
 */
 
 const GEMINI_MODEL =
-  process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+  process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 
 const GEMINI_API_URL =
   `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
@@ -34,7 +34,7 @@ const geminiApiError = (response, operation) => {
     return new ApiError(503, 'Gemini rejected the configured API key or its permissions. Check the backend AI_API_KEY settings.');
   }
   if (response.status === 404) {
-    return new ApiError(503, `The configured Gemini model (${GEMINI_MODEL}) is unavailable. Check GEMINI_MODEL and model access.`);
+    return new ApiError(503, `The configured Gemini model (${GEMINI_MODEL}) is unavailable or not enabled for this API key. Check GEMINI_MODEL and model access.`);
   }
   return new ApiError(502, 'The AI service could not complete this request. Please try again later.');
 };
@@ -294,7 +294,7 @@ MediBridge AI can support reminders and adherence, but urgent symptoms need real
 
 export const scanPrescriptionImage = async (
   imageBase64,
-  mimeType = 'image/jpeg',
+  mimeType,
   fileName = ''
 ) => {
 
@@ -334,8 +334,19 @@ export const scanPrescriptionImage = async (
 
   const dataUriMatch = imageBase64.match(/^data:(image\/(?:jpeg|jpg|png|webp));base64,([A-Za-z0-9+/=]+)$/i);
   const cleanBase64 = dataUriMatch ? dataUriMatch[2] : imageBase64;
-  const submittedMime = (dataUriMatch?.[1] || mimeType || '').toLowerCase();
+  const dataUriMime = dataUriMatch?.[1]?.toLowerCase() || '';
+  const declaredMime = typeof mimeType === 'string' ? mimeType.trim().toLowerCase() : '';
+  const submittedMime = dataUriMime || declaredMime || 'image/jpeg';
   const normalizedMime = submittedMime === 'image/jpg' ? 'image/jpeg' : submittedMime;
+  const maxImageBytes = 7 * 1024 * 1024;
+  const maxBase64Length = Math.ceil(maxImageBytes / 3) * 4;
+
+  if (cleanBase64.length > maxBase64Length) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The image is too large. Please upload an image under 7 MB.',
+    };
+  }
 
   if (!allowedMimeTypes.includes(submittedMime) || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(cleanBase64)) {
 
@@ -347,6 +358,15 @@ export const scanPrescriptionImage = async (
 
   }
 
+  const normalizedDeclaredMime = declaredMime === 'image/jpg' ? 'image/jpeg' : declaredMime;
+  const normalizedDataUriMime = dataUriMime === 'image/jpg' ? 'image/jpeg' : dataUriMime;
+  if (normalizedDataUriMime && normalizedDeclaredMime && normalizedDataUriMime !== normalizedDeclaredMime) {
+    return {
+      isValidPrescription: false,
+      rejectionReason: 'The declared image type does not match the uploaded image data.',
+    };
+  }
+
 
   /*
   |--------------------------------------------------------------------------
@@ -355,7 +375,7 @@ export const scanPrescriptionImage = async (
   */
 
   const imageBuffer = Buffer.from(cleanBase64, 'base64');
-  if (imageBuffer.length > 7 * 1024 * 1024) {
+  if (imageBuffer.length > maxImageBytes) {
     return {
       isValidPrescription: false,
       rejectionReason: 'The image is too large. Please upload an image under 7 MB.',
@@ -378,7 +398,7 @@ export const scanPrescriptionImage = async (
   }
 
   if (!isConfiguredAIKey(apiKey)) {
-    throw new ApiError(503, 'The AI vision service is not configured. Please try again later.');
+    throw new ApiError(503, 'Prescription scanning is disabled because the backend AI_API_KEY is not configured.');
   }
 
 
@@ -545,13 +565,17 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       |--------------------------------------------------------------------------
       */
 
-      const data =
-        await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch {
+        throw new ApiError(502, 'Gemini returned an invalid response. Please retry scanning.');
+      }
 
-      const text =
-        data?.candidates?.[0]
-          ?.content?.parts?.[0]
-          ?.text;
+      const responseParts = data?.candidates?.[0]?.content?.parts;
+      const text = Array.isArray(responseParts)
+        ? responseParts.map((part) => typeof part?.text === 'string' ? part.text : '').join('').trim()
+        : '';
 
 
       if (!text) {
@@ -573,33 +597,20 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       */
 
       let parsed;
-
       try {
-
-        parsed =
-          JSON.parse(text);
-
-      } catch (error) {
-
-        const jsonMatch =
-          text.match(/\{[\s\S]*\}/);
-
-        if (!jsonMatch) {
-
-          return {
-            isValidPrescription: false,
-
-            rejectionReason:
-              'The AI returned an unreadable result. Please upload a clearer image.'
-          };
-
+        parsed = JSON.parse(text);
+      } catch {
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        try {
+          if (!jsonMatch) throw new Error('No JSON object found.');
+          parsed = JSON.parse(jsonMatch[0]);
+        } catch {
+          throw new ApiError(502, 'Gemini returned an invalid structured response. Please retry scanning.');
         }
+      }
 
-        parsed =
-          JSON.parse(
-            jsonMatch[0]
-          );
-
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new ApiError(502, 'Gemini returned an invalid structured response. Please retry scanning.');
       }
 
 
@@ -830,6 +841,9 @@ Return ONLY valid JSON. No explanations, no markdown, no extra text.
       if (error instanceof ApiError) throw error;
       if (error.name === 'AbortError' || error.name === 'TimeoutError') {
         throw new ApiError(504, 'The AI vision service took too long to respond. Please try again.');
+      }
+      if (error instanceof TypeError) {
+        throw new ApiError(502, 'The backend could not reach the Gemini API. Check backend network access and try again.');
       }
       throw new ApiError(502, 'Unable to analyze the prescription image. Please try again later.');
     } finally {

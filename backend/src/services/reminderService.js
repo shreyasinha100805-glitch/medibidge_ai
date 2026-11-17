@@ -19,7 +19,8 @@ export function isMedicineActiveOn(medicine, date, timeZone = 'UTC') {
   if (startDateKey && dateKey < startDateKey) return false;
   if (endDateKey && dateKey > endDateKey) return false;
 
-  const frequency = medicine.frequency || 'DAILY';
+  const frequency = medicine.frequency;
+  if (!frequency) return false;
   if (frequency === 'AS_NEEDED') return false;
   if (frequency === 'DAILY' || !startDateKey) return true;
 

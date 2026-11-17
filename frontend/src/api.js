@@ -263,9 +263,10 @@ export const getAdherenceMetrics = async () => {
 
 export const getMedicines = () => apiCall("/medicines");
 
-export const addMedicine = async (medicineData) => {
+export const addMedicine = async (medicineData, { idempotencyKey } = {}) => {
     return await apiCall("/medicines", {
         method: "POST",
+        headers: idempotencyKey ? { "Idempotency-Key": idempotencyKey } : {},
         body: JSON.stringify(medicineData)
     });
 };

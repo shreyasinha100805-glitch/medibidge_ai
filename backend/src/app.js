@@ -50,7 +50,7 @@ app.use(
       }
     },
     credentials: true,
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-Time-Zone'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Time-Zone', 'Idempotency-Key'],
   })
 );
 app.use(express.json({ limit: '10mb' }));

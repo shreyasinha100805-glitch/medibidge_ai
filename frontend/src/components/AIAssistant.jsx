@@ -83,6 +83,7 @@ export const AIAssistant = ({
 
   const fileInputRef =
     useRef(null);
+  const saveRequestRef = useRef(new Map());
 
 
   const samplePrompts = [
@@ -723,35 +724,31 @@ export const AIAssistant = ({
           return;
         }
 
-        await onAddMedicine({
-
-          name:
-            pData.name,
-
-          dosage:
-            dosage,
-
-          activeIngredient:
-            pData.activeIngredient || '',
-
-          unit:
-            pData.unit,
-
-          category:
-            normalizeCategory(
-              pData.category
-            ),
-
+        const medicineData = {
+          name: pData.name,
+          dosage,
+          activeIngredient: pData.activeIngredient || '',
+          unit: pData.unit,
+          category: normalizeCategory(pData.category),
           ...(resolvedTime ? { scheduledTime: resolvedTime } : {}),
-
           frequency,
-
-          duration:
-            pData.duration || '',
-
+          duration: pData.duration || '',
           instructions: pData.instructions || '',
+        };
+        const fingerprint = JSON.stringify(medicineData);
+        let saveRequest = saveRequestRef.current.get(msgId);
+        if (saveRequest?.fingerprint !== fingerprint) {
+          if (!globalThis.crypto?.randomUUID) {
+            throw new Error('Secure request identifiers are unavailable in this browser. Please reload the page and try again.');
+          }
+          saveRequest = {
+            fingerprint,
+            idempotencyKey: globalThis.crypto.randomUUID(),
+          };
+          saveRequestRef.current.set(msgId, saveRequest);
+        }
 
-        });
+        await onAddMedicine(medicineData, { idempotencyKey: saveRequest.idempotencyKey });
 
 
         setChatLogs(
